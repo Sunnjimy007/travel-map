@@ -123,7 +123,7 @@ function SignedInGate() {
         {view === 'map' && (
           <button
             onClick={() => setShowAddForm(true)}
-            className="absolute bottom-3 right-3 bg-coral px-[18px] py-[13px] text-left text-[13px] font-extrabold text-white hover:bg-coral-pressed sm:bottom-5 sm:right-5"
+            className="absolute bottom-16 right-3 bg-coral px-[18px] py-[13px] text-left text-[13px] font-extrabold text-white hover:bg-coral-pressed md:bottom-5 md:right-5"
           >
             + Add visit
           </button>
