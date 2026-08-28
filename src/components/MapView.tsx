@@ -285,6 +285,21 @@ export function MapView({
     })
     mapRef.current = map
 
+    // Default the view to the visitor's own location, unless we're mounting
+    // because a specific pin was requested (e.g. "Show on map" from the
+    // Timeline) — that flyTo should win instead of getting overridden here.
+    if (!flyToTarget && 'geolocation' in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          map.jumpTo({ center: [pos.coords.longitude, pos.coords.latitude], zoom: 4 })
+        },
+        () => {
+          // Permission denied or unavailable — keep the default world view.
+        },
+        { timeout: 8000, maximumAge: 5 * 60 * 1000 }
+      )
+    }
+
     map.on('mouseenter', 'clusters', () => (map.getCanvas().style.cursor = 'pointer'))
     map.on('mouseleave', 'clusters', () => (map.getCanvas().style.cursor = ''))
 
