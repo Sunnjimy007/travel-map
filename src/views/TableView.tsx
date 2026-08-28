@@ -348,7 +348,7 @@ export function TableView({
       </div>
 
       {/* Mobile field cards */}
-      <div className="flex-1 overflow-y-auto md:hidden">
+      <div className="flex-1 overflow-y-auto pb-20 md:hidden">
         {sorted.map((r) => {
           const isEditing = editingVisitId === r.visitId
           if (isEditing) {
@@ -458,15 +458,15 @@ export function TableView({
         })}
 
         {sorted.length === 0 && <div className="px-4 py-10 text-center text-ink/40">No visits match.</div>}
+      </div>
 
-        <div className="px-4 py-4">
-          <button
-            onClick={onAddVisit}
-            className="block w-full bg-coral px-4 py-3.5 text-left text-[13px] font-extrabold text-white"
-          >
-            + Add visit
-          </button>
-        </div>
+      <div className="fixed inset-x-0 bottom-14 z-20 px-4 py-3 md:hidden">
+        <button
+          onClick={onAddVisit}
+          className="block w-full bg-coral px-4 py-3.5 text-left text-[13px] font-extrabold text-white shadow-[0_-4px_12px_rgba(30,41,59,0.15)]"
+        >
+          + Add visit
+        </button>
       </div>
 
       {uploadTarget && (
