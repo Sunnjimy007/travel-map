@@ -149,6 +149,12 @@ export async function pickPhotosFromGoogle(maxItems: number, popup: Window | nul
     }
   }
 
+  // The picker's job is done — close its tab so the user isn't left with a
+  // stray one to clean up manually. `close()` only works on windows we
+  // opened, which this always is (the fallback branch above uses window.open
+  // too), so no need to guard for cross-origin restrictions here.
+  if (!pickerWindow.closed) pickerWindow.close()
+
   if (!mediaItemsSet) {
     throw new Error('No photos were selected.')
   }
