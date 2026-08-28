@@ -90,7 +90,7 @@ function SignedInGate() {
     <div className="flex h-screen w-screen flex-col overflow-hidden bg-ground">
       <Nav active={view} onChange={setView} onSignOut={signOut} />
 
-      <div className="relative flex-1 overflow-hidden pb-12 md:pb-0">
+      <div className="relative flex-1 overflow-hidden pb-14 md:pb-0">
         {view === 'map' && (
           <MapView
             places={data.places}

@@ -361,8 +361,12 @@ export function MapView({
     function updateGlobeMask() {
       const el = containerRef.current
       if (!el) return
-      if (map.getZoom() < GLOBE_MASK_MAX_ZOOM) {
-        const mask = 'radial-gradient(circle 44vmin at 50% 50%, black 96%, transparent 100%)'
+      // A strict "<" here left the mask on at exactly zoom 4 (float rounding
+      // regularly lands a hair under 4), which cropped an already-large globe
+      // down to a small circle. Back off the threshold so the mask reliably
+      // clears once we're actually at the default zoom.
+      if (map.getZoom() < GLOBE_MASK_MAX_ZOOM - 0.05) {
+        const mask = 'radial-gradient(circle 66vmin at 50% 50%, black 96%, transparent 100%)'
         el.style.maskImage = mask
         el.style.webkitMaskImage = mask
       } else {
@@ -438,7 +442,12 @@ export function MapView({
 
   return (
     <>
-      <div ref={containerRef} style={{ position: 'absolute', inset: 0, backgroundColor }} />
+      {/* Sits behind the map container and must stay unmasked — the globe
+          vignette mask below is applied to containerRef (which MapLibre also
+          owns), so putting the background color on that same element would
+          make it vanish too, everywhere the mask makes the map transparent. */}
+      <div style={{ position: 'absolute', inset: 0, backgroundColor }} />
+      <div ref={containerRef} style={{ position: 'absolute', inset: 0 }} />
 
       {/* Projection toggle + base style toggle */}
       <div className="pointer-events-none absolute left-3 top-3 flex flex-col gap-2 sm:left-5 sm:top-5">

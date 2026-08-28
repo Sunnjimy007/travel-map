@@ -288,7 +288,7 @@ export function PlaceCard({
       </div>
 
       {/* Mobile bottom sheet */}
-      <div className="pointer-events-auto fixed inset-x-0 bottom-12 z-20 flex max-h-[65vh] flex-col border-t-2 border-ink bg-ground sm:hidden">
+      <div className="pointer-events-auto fixed inset-x-0 bottom-14 z-20 flex max-h-[65vh] flex-col border-t-2 border-ink bg-ground sm:hidden">
         <div className="mx-auto mb-2 mt-3.5 h-1 w-11 flex-shrink-0 bg-ink/15" />
         <Header compact />
         <div className="mt-2 overflow-y-auto px-4 pb-4">

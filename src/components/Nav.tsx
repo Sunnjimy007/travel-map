@@ -51,10 +51,8 @@ export function Nav({ active, onChange, onSignOut }: NavProps) {
           <button
             key={v.key}
             onClick={() => onChange(v.key)}
-            className={`flex-1 py-3 text-center text-[11px] ${
-              active === v.key
-                ? '-mt-[2px] border-t-[3px] border-sage font-extrabold text-sage'
-                : 'font-normal text-ink/60'
+            className={`flex-1 py-3.5 text-center text-[14px] tracking-[.02em] ${
+              active === v.key ? 'bg-sage font-extrabold text-white' : 'font-normal text-ink/60'
             }`}
           >
             {v.label}
