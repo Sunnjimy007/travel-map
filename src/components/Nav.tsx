@@ -21,7 +21,7 @@ export function Nav({ active, onChange, onSignOut }: NavProps) {
         <div className="flex items-center gap-3.5 px-8">
           <div className="h-3.5 w-3.5 bg-sage" />
           <span className="font-sans text-[13px] font-extrabold tracking-[.14em] uppercase">
-            Where I've Been
+            Post Mark
           </span>
         </div>
         <div className="flex items-stretch border-l-2 border-ink">
