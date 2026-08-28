@@ -232,51 +232,63 @@ export function MapView({
   }
 
   function addPlacesLayers(map: maplibregl.Map) {
-    if (map.getSource('places')) return
+    // Source and layers are checked independently rather than bailing out on
+    // "source already exists" — after a style swap it's possible for a source
+    // reference to still resolve while nothing actually renders it, which
+    // means MapLibre never requests tiles for it and querySourceFeatures()
+    // stays empty forever, silently breaking every unclustered pin. Always
+    // make sure the layers that trigger tile-loading are actually present.
+    if (!map.getSource('places')) {
+      map.addSource('places', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] },
+        cluster: true,
+        clusterRadius: 50,
+        clusterMaxZoom: 12,
+      })
+    }
 
-    map.addSource('places', {
-      type: 'geojson',
-      data: { type: 'FeatureCollection', features: [] },
-      cluster: true,
-      clusterRadius: 50,
-      clusterMaxZoom: 12,
-    })
+    if (!map.getLayer('cluster-halo')) {
+      map.addLayer({
+        id: 'cluster-halo',
+        type: 'circle',
+        source: 'places',
+        filter: ['has', 'point_count'],
+        paint: {
+          'circle-color': CORAL,
+          'circle-opacity': 0.18,
+          'circle-radius': ['interpolate', ['linear'], ['get', 'point_count'], 2, 21, 7, 28, 30, 37],
+        },
+      })
+    }
 
-    map.addLayer({
-      id: 'cluster-halo',
-      type: 'circle',
-      source: 'places',
-      filter: ['has', 'point_count'],
-      paint: {
-        'circle-color': CORAL,
-        'circle-opacity': 0.18,
-        'circle-radius': ['interpolate', ['linear'], ['get', 'point_count'], 2, 21, 7, 28, 30, 37],
-      },
-    })
+    if (!map.getLayer('clusters')) {
+      map.addLayer({
+        id: 'clusters',
+        type: 'circle',
+        source: 'places',
+        filter: ['has', 'point_count'],
+        paint: {
+          'circle-color': CORAL,
+          'circle-radius': ['interpolate', ['linear'], ['get', 'point_count'], 2, 14, 7, 21, 30, 30],
+        },
+      })
+    }
 
-    map.addLayer({
-      id: 'clusters',
-      type: 'circle',
-      source: 'places',
-      filter: ['has', 'point_count'],
-      paint: {
-        'circle-color': CORAL,
-        'circle-radius': ['interpolate', ['linear'], ['get', 'point_count'], 2, 14, 7, 21, 30, 30],
-      },
-    })
-
-    map.addLayer({
-      id: 'cluster-count',
-      type: 'symbol',
-      source: 'places',
-      filter: ['has', 'point_count'],
-      layout: {
-        'text-field': ['get', 'point_count_abbreviated'],
-        'text-size': 13,
-        'text-font': ['Noto Sans Bold'],
-      },
-      paint: { 'text-color': '#fff' },
-    })
+    if (!map.getLayer('cluster-count')) {
+      map.addLayer({
+        id: 'cluster-count',
+        type: 'symbol',
+        source: 'places',
+        filter: ['has', 'point_count'],
+        layout: {
+          'text-field': ['get', 'point_count_abbreviated'],
+          'text-size': 13,
+          'text-font': ['Noto Sans Bold'],
+        },
+        paint: { 'text-color': '#fff' },
+      })
+    }
 
     syncData()
   }
@@ -347,6 +359,10 @@ export function MapView({
     map.on('sourcedata', (e) => {
       if (e.sourceId === 'places' && e.isSourceLoaded) syncMarkers()
     })
+    // Belt-and-suspenders: 'idle' fires once the map has fully settled (all
+    // tiles loaded, nothing pending), so it catches any case where the more
+    // targeted listeners above missed the right moment to re-sync.
+    map.on('idle', syncMarkers)
 
     const resizeObserver = new ResizeObserver(() => map.resize())
     resizeObserver.observe(containerRef.current)
