@@ -172,6 +172,13 @@ export function MapView({
       return
     }
 
+    // Right after a style swap, the source has just been re-added and hasn't
+    // finished loading yet — querySourceFeatures legitimately returns nothing
+    // for a moment. Don't treat that as "no pins exist" and wipe every
+    // marker; wait for the source to actually finish before trusting an
+    // empty result. A later 'sourcedata' event re-triggers this once it has.
+    if (features.length === 0 && !map.isSourceLoaded('places')) return
+
     const seen = new Set<string>()
     const byId = new Map(placesRef.current.map((p) => [p.id, p]))
 
