@@ -3,6 +3,7 @@ import { searchTown, reverseGeocode, type GeocodeResult } from '../lib/geocode'
 import type { PlaceWithVisits } from '../types'
 import { GooglePhotosButton } from './GooglePhotosButton'
 import type { PickedPhoto } from '../lib/googlePhotos'
+import { MAX_PHOTOS_PER_VISIT } from '../lib/constants'
 
 interface AddVisitFormProps {
   places: PlaceWithVisits[]
@@ -134,12 +135,12 @@ export function AddVisitForm({
 
   function onFilesChosen(files: FileList | null) {
     if (!files) return
-    const arr = Array.from(files).slice(0, 3 - photos.length)
-    setPhotos((prev) => [...prev, ...arr].slice(0, 3))
+    const arr = Array.from(files).slice(0, MAX_PHOTOS_PER_VISIT - photos.length)
+    setPhotos((prev) => [...prev, ...arr].slice(0, MAX_PHOTOS_PER_VISIT))
   }
 
   function onGooglePhotosPicked(picked: PickedPhoto[]) {
-    setPhotos((prev) => [...prev, ...picked.map((p) => p.file)].slice(0, 3))
+    setPhotos((prev) => [...prev, ...picked.map((p) => p.file)].slice(0, MAX_PHOTOS_PER_VISIT))
     const newTimes = picked.map((p) => p.createTime).filter((t): t is string => !!t)
     if (newTimes.length === 0) return
     photoCreateTimesRef.current = [...photoCreateTimesRef.current, ...newTimes]
@@ -162,14 +163,14 @@ export function AddVisitForm({
         </div>
 
         <div className="mb-4">
-          <GooglePhotosButton remainingSlots={3 - photos.length} onPicked={onGooglePhotosPicked} variant="primary" />
+          <GooglePhotosButton remainingSlots={MAX_PHOTOS_PER_VISIT - photos.length} onPicked={onGooglePhotosPicked} variant="primary" />
           <p className="mt-1.5 text-[11px] text-ink/50">
             Fills in the date from the photo — you'll still need to set the town.
           </p>
         </div>
 
         <div className="mb-4">
-          <label className="mb-1 block text-[12px] text-ink/60">Photos (up to 3)</label>
+          <label className="mb-1 block text-[12px] text-ink/60">Photos (up to {MAX_PHOTOS_PER_VISIT})</label>
           <div className="flex flex-wrap gap-2">
             {photos.map((f, i) => (
               <div key={i} className="relative h-20 w-20 bg-surface">
@@ -183,7 +184,7 @@ export function AddVisitForm({
                 </button>
               </div>
             ))}
-            {photos.length < 3 && (
+            {photos.length < MAX_PHOTOS_PER_VISIT && (
               <label className="flex h-20 w-20 cursor-pointer items-center justify-center border border-dashed border-ink/30 text-ink/40 hover:border-coral">
                 +
                 <input

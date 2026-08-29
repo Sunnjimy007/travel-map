@@ -4,6 +4,7 @@ import type { PlaceWithVisits, VisitPhoto, VisitWithPhotos } from '../types'
 import { PhotoThumb } from './PhotoThumb'
 import { Lightbox } from './Lightbox'
 import { GooglePhotosButton } from './GooglePhotosButton'
+import { MAX_PHOTOS_PER_VISIT } from '../lib/constants'
 
 interface PlaceCardProps {
   place: PlaceWithVisits
@@ -71,7 +72,7 @@ function PhotoStrip({
             )}
           </div>
         ))}
-        {editing && photos.length < 3 && (
+        {editing && photos.length < MAX_PHOTOS_PER_VISIT && (
           <label
             className="flex cursor-pointer items-center justify-center border border-dashed border-ink/30 text-ink/40 hover:border-coral"
             style={{ height }}
@@ -83,7 +84,7 @@ function PhotoStrip({
               multiple
               className="hidden"
               onChange={(e) => {
-                const files = Array.from(e.target.files ?? []).slice(0, 3 - photos.length)
+                const files = Array.from(e.target.files ?? []).slice(0, MAX_PHOTOS_PER_VISIT - photos.length)
                 if (files.length) onAddFiles(files)
               }}
             />
@@ -93,7 +94,7 @@ function PhotoStrip({
       {editing && (
         <div className="mt-1.5">
           <GooglePhotosButton
-            remainingSlots={3 - photos.length}
+            remainingSlots={MAX_PHOTOS_PER_VISIT - photos.length}
             onPicked={(picked) => onAddFiles(picked.map((p) => p.file))}
           />
         </div>

@@ -4,6 +4,7 @@ import type { PlaceWithVisits, VisitPhoto } from '../types'
 import { exportVisitsToCsv } from '../lib/csv'
 import { PhotoThumb } from '../components/PhotoThumb'
 import { Lightbox } from '../components/Lightbox'
+import { MAX_PHOTOS_PER_VISIT } from '../lib/constants'
 
 interface Row {
   visitId: string
@@ -394,7 +395,7 @@ export function TableView({
                 </label>
                 <div>
                   <div className="mb-1 font-mono text-[10px] font-extrabold uppercase tracking-[.1em] text-ink/60">
-                    Photos · {r.photos.length} of 3
+                    Photos · {r.photos.length} of {MAX_PHOTOS_PER_VISIT}
                   </div>
                   <div className="flex gap-1.5">
                     {r.photos.map((p, i) => (
@@ -405,7 +406,7 @@ export function TableView({
                         onClick={() => setLightbox({ photos: r.photos, index: i })}
                       />
                     ))}
-                    {r.photos.length < 3 && (
+                    {r.photos.length < MAX_PHOTOS_PER_VISIT && (
                       <button
                         onClick={() => setUploadTarget(r)}
                         className="flex h-14 w-14 items-center justify-center border border-dashed border-ink/30 text-lg font-extrabold text-sage"
@@ -477,7 +478,7 @@ export function TableView({
           autoFocus
           className="fixed bottom-16 left-4 z-30 md:bottom-4"
           onChange={async (e) => {
-            const files = Array.from(e.target.files ?? []).slice(0, 3 - uploadTarget.photos.length)
+            const files = Array.from(e.target.files ?? []).slice(0, MAX_PHOTOS_PER_VISIT - uploadTarget.photos.length)
             if (files.length) await onAddPhotos(uploadTarget.visitId, files, uploadTarget.photos.length)
             setUploadTarget(null)
           }}

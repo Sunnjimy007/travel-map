@@ -13,6 +13,14 @@
 
 Build a private web app where I can drop **pins on a world map** at the **town level**, attach a **date, a written memory, and up to 3 photos** to each pin, and browse everything as a map, a chronological timeline, or a stats summary. Data lives in a real backend (Supabase) so it persists everywhere and is ready to open up to family later.
 
+### Context & problem
+
+The deeper reason for this app is **capturing the small moments of a holiday before they're lost** — and making that capture easy enough that kids will actually do it.
+
+My children (10 and 12) have travelled a lot, but they don't keep a diary. When I look back at my own travels, the moments I most wish I'd kept are the little ones — a funny thing someone said, the best thing we ate, who made us laugh — the details that evaporate within weeks unless something catches them. I kept a single diary when I was 15, and I love re-reading it now; I want my kids to have that same thing without it feeling like homework.
+
+So the problem isn't "map the countries I've been to" — that's the easy part. It's: **how do you make capturing a holiday feel like play, so the nice small moments survive?** The map and visit log are the foundation; the **Holiday Stories** feature (MVP+1, §11) is where this problem is really solved — turning a trip into a little mini-movie the kids build mostly from the photos they take.
+
 ---
 
 ## 2. Scope & phasing
@@ -22,7 +30,7 @@ The build is deliberately phased. **Build the MVP fully before touching MVP+1.**
 | Phase | Includes |
 |---|---|
 | **MVP** | Single user (me). Auth. Map with pins. Click a pin → popup card listing every visit to that town (date, memory, up to 3 photos each). Log/edit/delete a visit; repeat visits share one pin. Direct photo upload to Supabase Storage. Timeline view. Editable table view (Flight Diary-style) + CSV export. Stats view. |
-| **MVP+1** | **Flight tracking** (log flights; draw routes between airports on the map). Multi-profile / sharing (family members get their own maps; option to view mine read-only). **Google Photos Picker** integration as an alternative to direct upload. |
+| **MVP+1** | **Holiday Stories** (group a trip's visits into an auto-playing mini-movie for the kids — headline feature). **Flight tracking** (log flights; draw routes between airports on the map). Multi-profile / sharing (family members get their own maps; option to view mine read-only). **Google Photos Picker** integration as an alternative to direct upload. |
 | **MVP+2** | Bulk import from CSV / spreadsheet. |
 
 Anything not listed under MVP is **out of scope for v1** — see §11.
@@ -262,9 +270,60 @@ Claude Code will need these — set as environment variables, never hard-coded:
 
 ## 11. Out of scope for MVP (future phases)
 
-### MVP+1 — Flight tracking, Sharing & Google Photos
+### MVP+1 — Holiday Stories, Flight tracking, Sharing & Google Photos
 
-**Flight tracking** — log flights and draw them as routes on the map, alongside the town-visit pins. Modelled on the Flightradar24 Flight Diary that inspired the editable grid.
+**Holiday Stories** — turn a holiday into a mini-movie. *The headline MVP+1 feature — it's what the whole app is really for (see Context & problem, §1).*
+
+Group the visits from a single holiday into an auto-playing **story**: the map flies from stop to stop, and each place reveals its photos, the child's own note, and one interesting fact. The point is a keepsake the kids build mostly from the photos they already take — capturing the small moments of a trip without it feeling like a diary.
+
+**How it works (v1):**
+- **Built from existing visits.** A story groups visits already logged on the map for that holiday; their dates, places, photos, and notes flow in automatically — nothing entered twice. (Fully standalone stories are a later idea.)
+- **Auto-ordered by time, with a start and end.** The story has a start point/date/time and an end date/time, and stops in between are sequenced chronologically. Where a photo carries **EXIF date/time and GPS**, that's used to order stops and drop pins automatically — but **every value is editable**, because photos shared via WhatsApp or the Google Picker often have their EXIF stripped. Manual date/place entry is always the fallback.
+- **Per profile, shareable with family.** Each child builds their **own** story under their own profile (ties to multi-profile, below), with a **Share** button that mints a **read-only link** so family — grandparents especially — can watch without editing.
+- **One interesting fact per stop.** Auto-generated from the web and summarised at a **10–12 reading level**. Each fact has a **Regenerate** button (if it's boring) and an **Edit** button (to reword or correct it); facts can be reviewed and fixed before the story is shared.
+- **Guided prompts.** At each stop the tool asks a couple of friendly questions to draw out the small moments — "funniest thing that happened here?", "best thing you ate?", "who made you laugh?" — and the answers become that stop's note. A kid who won't keep a diary will still answer a fun question.
+- **Handwritten notes.** A child can write a note on paper, photograph it, and add it to a stop — displayed as the **image itself** in the story. (Handwriting-to-text scanning/OCR is specced as a *future* option to validate later; kids' handwriting is genuinely hard for OCR, so v1 is image-only.)
+- **Playful touches.** **Stickers and emoji** can be added to stops/photos. (Voice notes, short video clips, star ratings, and "who was with me" tags are noted and parked for the future.)
+- **Playback.** In-app **auto-playing flythrough** with a **Pause** control — pausing lets you step through the stops at your own pace. Reuses the globe/flat map.
+- **Look & feel.** Matches the app's existing clean UI (screens to be designed in Claude Design), not a separate kid theme.
+
+**Photo cap:** this feature **lifts the MVP's 3-photos-per-visit limit (§6.4)** so a holiday has enough material for a story — raise it to a higher cap (e.g. ~20 per visit) or unbounded. *Decision to make:* raise the cap in the MVP too, or only once Stories ships.
+
+**Data model sketch:**
+```sql
+create table stories (
+  id           uuid primary key default gen_random_uuid(),
+  user_id      uuid not null references auth.users(id) on delete cascade,
+  title        text not null,
+  start_date   date,
+  end_date     date,
+  cover_path   text,
+  share_token  text unique,        -- null until shared; powers the read-only link
+  created_at   timestamptz default now()
+);
+
+create table story_stops (
+  id            uuid primary key default gen_random_uuid(),
+  story_id      uuid not null references stories(id) on delete cascade,
+  visit_id      uuid not null references visits(id) on delete cascade,
+  sort_order    int not null,
+  fact_text     text,              -- the editable / regenerable interesting fact
+  story_note    text,              -- answers to the guided prompts / caption
+  stickers      jsonb,             -- stickers & emoji placed on this stop
+  created_at    timestamptz default now()
+);
+```
+Same RLS pattern (`auth.uid() = user_id` on `stories`; `story_stops` reachable only via an owned story). The share link resolves a `share_token` to a public, **non-editable** playback.
+
+**Interesting-facts pipeline:** generating a kid-level fact per location needs a **server-side call** that does a web lookup + summarise (e.g. an Anthropic API call with web search behind a small backend function), so keys aren't exposed. **Regenerate** re-runs it; **Edit** overrides it with the child's/parent's own text.
+
+**v1 is worth shipping when:** a child can pick a holiday, watch an auto-playing flythrough of its stops showing their photos, one fact per stop, and a guided-prompt note — then share a read-only link with family. Everything else (OCR, video export, richer media) can wait.
+
+---
+
+### Flight tracking
+
+Log flights and draw them as routes on the map, alongside the town-visit pins. Modelled on the Flightradar24 Flight Diary that inspired the editable grid.
 
 - **Concept:** a `flight` is a journey between two airports on a date. Flights are a **separate layer** from town-visits — they can be toggled on/off — but share the same map and the same editable-grid experience.
 - **Fields** (mirroring Flight Diary): date, flight number, airline, **from** airport, **to** airport, departure/arrival times, aircraft, seat, distance, note. Airports are stored by **IATA code** (e.g. SIN, PEN, BKK).
@@ -293,9 +352,13 @@ Claude Code will need these — set as environment variables, never hard-coded:
 - **Editing:** reuse the **editable data grid (§6.7)** — a "Flights" tab with the Flight Diary columns, inline add/edit/delete, and CSV export. This is the closest match to what I already use and like.
 - **Relationship to town-visits:** kept intentionally simple for MVP+1 — flights and visits are independent layers. (A future nicety could auto-suggest a town-visit when I log a flight into a new city, but that's not in scope yet.)
 
-**Multi-profile / sharing** — other users with their own maps; a read-only public share link for a given map. RLS already supports this; adds a `shared` flag or a share-token table.
+### Multi-profile / sharing
 
-**Google Photos Picker integration.** Important reality check so this is scoped correctly:
+Other users with their own maps; a read-only public share link for a given map. RLS already supports this; adds a `shared` flag or a share-token table. This is also what the **Holiday Stories** share links build on.
+
+### Google Photos Picker integration
+
+Important reality check so this is scoped correctly:
 - Google **removed** the old "read the user's whole library" scopes on **31 March 2025**. The only supported path now is the **Picker API**, where the user manually selects photos in a Google-hosted dialog.
 - The Picker returns temporary `baseUrl`s that **expire after ~60 minutes**, so the app must **download the selected bytes and re-store them in Supabase Storage** — it cannot just save the Google URL.
 - Requires its own **Google Cloud project + OAuth consent screen + verification**. Plan this as a proper sub-project, not a quick add-on.

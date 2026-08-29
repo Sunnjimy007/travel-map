@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { deleteVisitPhotoFile, uploadVisitPhoto } from '../lib/photos'
+import { MAX_PHOTOS_PER_VISIT } from '../lib/constants'
 import type { Place, PlaceWithVisits, Visit, VisitPhoto } from '../types'
 
 interface NewVisitInput {
@@ -157,7 +158,7 @@ export function useTravelData(userId: string | null) {
   const addPhotosToVisit = useCallback(
     async (visitId: string, files: File[], startOrder: number) => {
       if (!userId) throw new Error('Not signed in')
-      const uploads = files.slice(0, 3).map(async (file, i) => {
+      const uploads = files.slice(0, MAX_PHOTOS_PER_VISIT).map(async (file, i) => {
         const path = await uploadVisitPhoto(userId, visitId, file)
         const { error: err } = await supabase
           .from('visit_photos')
