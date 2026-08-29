@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import * as maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
+import Supercluster from 'supercluster'
 import type { PlaceWithVisits } from '../types'
 
 const DARK_STYLE = 'https://tiles.openfreemap.org/styles/dark'
@@ -70,6 +71,22 @@ function applyPalette(map: maplibregl.Map) {
 
 const FLAT_PROJECTION_ZOOM = 5
 
+// Roughly matches the old GL circle-radius interpolation (2→14, 7→21, 30→30)
+// so cluster bubbles are about the same size as before.
+function clusterRadius(count: number): number {
+  if (count <= 2) return 14
+  if (count <= 7) return 14 + ((count - 2) / 5) * 7
+  if (count >= 30) return 30
+  return 21 + ((count - 7) / 23) * 9
+}
+
+interface PlaceProps {
+  placeId: string
+}
+interface ClusterProps extends Supercluster.ClusterProperties {}
+
+type MarkerEntry = { marker: maplibregl.Marker; el: HTMLDivElement }
+
 interface MapViewProps {
   places: PlaceWithVisits[]
   selectedPlaceId: string | null
@@ -95,7 +112,13 @@ export function MapView({
   const onSelectRef = useRef(onSelectPlace)
   const onPickRef = useRef(onPickLocation)
   const pickModeRef = useRef(pickMode)
-  const markersRef = useRef(new Map<string, { marker: maplibregl.Marker; el: HTMLDivElement }>())
+  const markersRef = useRef(new Map<string, MarkerEntry>())
+  // Clustering computed entirely client-side against the in-memory places
+  // list — deliberately independent of MapLibre's own tile/source loading
+  // pipeline. querySourceFeatures() (the tile-based approach this replaced)
+  // only returns features for tiles MapLibre has actually loaded, which
+  // silently broke after switching base map styles.
+  const clusterIndexRef = useRef<Supercluster<PlaceProps, ClusterProps> | null>(null)
   const [projection, setProjectionState] = useState<'globe' | 'flat'>('globe')
   const [baseStyle, setBaseStyle] = useState<BaseStyle>('satellite')
 
@@ -109,6 +132,18 @@ export function MapView({
     visits: places.reduce((sum, p) => sum + p.visits.length, 0),
     towns: places.length,
     countries: new Set(places.map((p) => p.country.trim().toLowerCase())).size,
+  }
+
+  function rebuildClusterIndex() {
+    const index = new Supercluster<PlaceProps, ClusterProps>({ radius: 50, maxZoom: 12 })
+    index.load(
+      placesRef.current.map((p) => ({
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: [p.longitude, p.latitude] },
+        properties: { placeId: p.id },
+      }))
+    )
+    clusterIndexRef.current = index
   }
 
   function renderMarkerContent(el: HTMLDivElement, place: PlaceWithVisits, selected: boolean) {
@@ -159,138 +194,108 @@ export function MapView({
     }
   }
 
+  function renderClusterContent(el: HTMLDivElement, count: number) {
+    el.innerHTML = ''
+    el.style.position = 'relative'
+    el.style.display = 'flex'
+    el.style.alignItems = 'center'
+    el.style.justifyContent = 'center'
+    el.style.cursor = 'pointer'
+
+    const r = clusterRadius(count)
+    const halo = document.createElement('div')
+    halo.style.position = 'absolute'
+    halo.style.width = `${(r + 7) * 2}px`
+    halo.style.height = `${(r + 7) * 2}px`
+    halo.style.borderRadius = '50%'
+    halo.style.background = CORAL
+    halo.style.opacity = '0.18'
+    el.appendChild(halo)
+
+    const core = document.createElement('div')
+    core.style.position = 'relative'
+    core.style.width = `${r * 2}px`
+    core.style.height = `${r * 2}px`
+    core.style.borderRadius = '50%'
+    core.style.background = CORAL
+    core.style.display = 'flex'
+    core.style.alignItems = 'center'
+    core.style.justifyContent = 'center'
+    core.style.color = '#fff'
+    core.style.font = `800 ${count > 99 ? 11 : 13}px Archivo, sans-serif`
+    core.textContent = String(count)
+    el.appendChild(core)
+  }
+
   function syncMarkers() {
     const map = mapRef.current
-    if (!map || !loadedRef.current) return
-    const source = map.getSource('places') as maplibregl.GeoJSONSource | undefined
-    if (!source) return
+    const index = clusterIndexRef.current
+    if (!map || !loadedRef.current || !index) return
 
-    let features: maplibregl.GeoJSONFeature[]
-    try {
-      features = map.querySourceFeatures('places', { filter: ['!', ['has', 'point_count']] })
-    } catch {
-      return
-    }
-
-    // Right after a style swap, the source has just been re-added and hasn't
-    // finished loading yet — querySourceFeatures legitimately returns nothing
-    // for a moment. Don't treat that as "no pins exist" and wipe every
-    // marker; wait for the source to actually finish before trusting an
-    // empty result. A later 'sourcedata' event re-triggers this once it has.
-    if (features.length === 0 && !map.isSourceLoaded('places')) return
+    const bounds = map.getBounds()
+    const bbox: [number, number, number, number] = [
+      bounds.getWest(),
+      bounds.getSouth(),
+      bounds.getEast(),
+      bounds.getNorth(),
+    ]
+    const zoom = Math.round(map.getZoom())
+    const clusters = index.getClusters(bbox, zoom)
 
     const seen = new Set<string>()
     const byId = new Map(placesRef.current.map((p) => [p.id, p]))
 
-    for (const f of features) {
-      const placeId = f.properties?.placeId as string | undefined
-      if (!placeId || seen.has(placeId)) continue
-      seen.add(placeId)
-      const place = byId.get(placeId)
-      if (!place) continue
+    for (const feature of clusters) {
+      const [lng, lat] = feature.geometry.coordinates
 
-      const coords = (f.geometry as { coordinates: [number, number] }).coordinates
-      const selected = placeId === selectedPlaceIdRef.current
-      const existing = markersRef.current.get(placeId)
-
-      if (existing) {
-        existing.marker.setLngLat(coords)
-        renderMarkerContent(existing.el, place, selected)
+      if ('cluster' in feature.properties && feature.properties.cluster) {
+        const clusterId = feature.properties.cluster_id
+        const key = `cluster-${clusterId}`
+        const count = feature.properties.point_count
+        seen.add(key)
+        const existing = markersRef.current.get(key)
+        if (existing) {
+          existing.marker.setLngLat([lng, lat])
+        } else {
+          const el = document.createElement('div')
+          renderClusterContent(el, count)
+          el.addEventListener('click', (e) => {
+            e.stopPropagation()
+            const expansionZoom = Math.min(index.getClusterExpansionZoom(clusterId), 20)
+            map.easeTo({ center: [lng, lat], zoom: expansionZoom })
+          })
+          const marker = new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat([lng, lat]).addTo(map)
+          markersRef.current.set(key, { marker, el })
+        }
       } else {
-        const el = document.createElement('div')
-        renderMarkerContent(el, place, selected)
-        el.addEventListener('click', (e) => {
-          e.stopPropagation()
-          onSelectRef.current(placeId)
-        })
-        const marker = new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat(coords).addTo(map)
-        markersRef.current.set(placeId, { marker, el })
+        const placeId = (feature.properties as PlaceProps).placeId
+        const place = byId.get(placeId)
+        if (!place) continue
+        seen.add(placeId)
+        const selected = placeId === selectedPlaceIdRef.current
+        const existing = markersRef.current.get(placeId)
+        if (existing) {
+          existing.marker.setLngLat([lng, lat])
+          renderMarkerContent(existing.el, place, selected)
+        } else {
+          const el = document.createElement('div')
+          renderMarkerContent(el, place, selected)
+          el.addEventListener('click', (e) => {
+            e.stopPropagation()
+            onSelectRef.current(placeId)
+          })
+          const marker = new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat([lng, lat]).addTo(map)
+          markersRef.current.set(placeId, { marker, el })
+        }
       }
     }
 
-    for (const [placeId, entry] of markersRef.current) {
-      if (!seen.has(placeId)) {
+    for (const [key, entry] of markersRef.current) {
+      if (!seen.has(key)) {
         entry.marker.remove()
-        markersRef.current.delete(placeId)
+        markersRef.current.delete(key)
       }
     }
-  }
-
-  function syncData() {
-    const map = mapRef.current
-    if (!map || !loadedRef.current) return
-    const source = map.getSource('places') as maplibregl.GeoJSONSource | undefined
-    if (!source) return
-    source.setData({
-      type: 'FeatureCollection',
-      features: placesRef.current.map((p) => ({
-        type: 'Feature',
-        geometry: { type: 'Point', coordinates: [p.longitude, p.latitude] },
-        properties: { placeId: p.id, town: p.town, country: p.country, visitCount: p.visits.length },
-      })),
-    })
-  }
-
-  function addPlacesLayers(map: maplibregl.Map) {
-    // Source and layers are checked independently rather than bailing out on
-    // "source already exists" — after a style swap it's possible for a source
-    // reference to still resolve while nothing actually renders it, which
-    // means MapLibre never requests tiles for it and querySourceFeatures()
-    // stays empty forever, silently breaking every unclustered pin. Always
-    // make sure the layers that trigger tile-loading are actually present.
-    if (!map.getSource('places')) {
-      map.addSource('places', {
-        type: 'geojson',
-        data: { type: 'FeatureCollection', features: [] },
-        cluster: true,
-        clusterRadius: 50,
-        clusterMaxZoom: 12,
-      })
-    }
-
-    if (!map.getLayer('cluster-halo')) {
-      map.addLayer({
-        id: 'cluster-halo',
-        type: 'circle',
-        source: 'places',
-        filter: ['has', 'point_count'],
-        paint: {
-          'circle-color': CORAL,
-          'circle-opacity': 0.18,
-          'circle-radius': ['interpolate', ['linear'], ['get', 'point_count'], 2, 21, 7, 28, 30, 37],
-        },
-      })
-    }
-
-    if (!map.getLayer('clusters')) {
-      map.addLayer({
-        id: 'clusters',
-        type: 'circle',
-        source: 'places',
-        filter: ['has', 'point_count'],
-        paint: {
-          'circle-color': CORAL,
-          'circle-radius': ['interpolate', ['linear'], ['get', 'point_count'], 2, 14, 7, 21, 30, 30],
-        },
-      })
-    }
-
-    if (!map.getLayer('cluster-count')) {
-      map.addLayer({
-        id: 'cluster-count',
-        type: 'symbol',
-        source: 'places',
-        filter: ['has', 'point_count'],
-        layout: {
-          'text-field': ['get', 'point_count_abbreviated'],
-          'text-size': 13,
-          'text-font': ['Noto Sans Bold'],
-        },
-        paint: { 'text-color': '#fff' },
-      })
-    }
-
-    syncData()
   }
 
   useEffect(() => {
@@ -319,24 +324,11 @@ export function MapView({
       )
     }
 
-    map.on('mouseenter', 'clusters', () => (map.getCanvas().style.cursor = 'pointer'))
-    map.on('mouseleave', 'clusters', () => (map.getCanvas().style.cursor = ''))
-
-    map.on('click', 'clusters', (e: maplibregl.MapLayerMouseEvent) => {
-      const features = map.queryRenderedFeatures(e.point, { layers: ['clusters'] })
-      const clusterId = features[0]?.properties?.cluster_id
-      const source = map.getSource('places') as maplibregl.GeoJSONSource
-      if (clusterId === undefined) return
-      source.getClusterExpansionZoom(clusterId).then((zoom) => {
-        const coords = (features[0].geometry as { coordinates: [number, number] }).coordinates
-        map.easeTo({ center: coords, zoom })
-      })
-    })
-
     map.on('click', (e: maplibregl.MapMouseEvent) => {
+      // Marker elements sit in their own DOM layer above the canvas and stop
+      // propagation on click, so a map click that reaches here never hit a
+      // pin or cluster — no need to hit-test for them separately.
       if (!pickModeRef.current) return
-      const hits = map.queryRenderedFeatures(e.point, { layers: ['clusters'] })
-      if (hits.length > 0) return
       onPickRef.current(e.lngLat.lat, e.lngLat.lng)
     })
 
@@ -347,22 +339,14 @@ export function MapView({
     map.on('load', () => {
       if (baseStyle === 'dark') applyPalette(map)
       map.setProjection({ type: 'globe' })
-      addPlacesLayers(map)
-
       loadedRef.current = true
       map.resize()
+      rebuildClusterIndex()
       syncMarkers()
     })
 
     map.on('zoomend', syncMarkers)
     map.on('moveend', syncMarkers)
-    map.on('sourcedata', (e) => {
-      if (e.sourceId === 'places' && e.isSourceLoaded) syncMarkers()
-    })
-    // Belt-and-suspenders: 'idle' fires once the map has fully settled (all
-    // tiles loaded, nothing pending), so it catches any case where the more
-    // targeted listeners above missed the right moment to re-sync.
-    map.on('idle', syncMarkers)
 
     const resizeObserver = new ResizeObserver(() => map.resize())
     resizeObserver.observe(containerRef.current)
@@ -405,7 +389,7 @@ export function MapView({
   }, [])
 
   useEffect(() => {
-    syncData()
+    rebuildClusterIndex()
     syncMarkers()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [places])
@@ -436,7 +420,8 @@ export function MapView({
     map.once('style.load', () => {
       if (baseStyle === 'dark') applyPalette(map)
       map.setProjection({ type: projection === 'globe' ? 'globe' : 'mercator' })
-      addPlacesLayers(map)
+      // Pins are plain HTML markers, not map layers, so they're unaffected
+      // by the style swap itself — just re-check them for the new viewport.
       syncMarkers()
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
