@@ -63,6 +63,7 @@ export interface StoryStop {
   fact_source: 'generated' | 'edited' | null
   story_note: string | null
   stickers: Sticker[] | null
+  note_photo_id: string | null
   created_at: string
 }
 

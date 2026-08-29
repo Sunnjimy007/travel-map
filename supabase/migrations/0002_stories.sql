@@ -22,6 +22,7 @@ create table story_stops (
   fact_source   text check (fact_source in ('generated', 'edited')),
   story_note    text,
   stickers      jsonb,
+  note_photo_id uuid references visit_photos(id) on delete set null,
   created_at    timestamptz default now()
 );
 

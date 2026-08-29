@@ -1,4 +1,5 @@
 @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,700;1,9..40,400&family=Instrument+Serif:ital@0;1&display=swap');
 @import 'tailwindcss';
 
 @theme {
@@ -19,6 +20,45 @@
   --font-mono: ui-monospace, Menlo, monospace;
 
   --radius-none: 0px;
+
+  /* Holiday Stories — its own warmer sub-palette per the design brief,
+     scoped to the Stories screens only; the shared Nav stays on the tokens
+     above. */
+  --color-story-board: #EEE9E0;
+  --color-story-cream: #FAF6EF;
+  --color-story-ink: #1F1D1A;
+  --color-story-body: #3B3730;
+  --color-story-muted: #6E6862;
+  --color-story-faint: #9A9287;
+  --color-story-disabled: #C4BCAE;
+  --color-story-hairline: #E6DFD2;
+  --color-story-divider: #DED7CA;
+  --color-story-dashed: #D3CBBC;
+  --color-story-photo: #DCD5C8;
+  --color-story-photo-alt: #E3DCCF;
+  --color-story-photo-tint: #EFE9DD;
+  --color-story-coral: #F26B4E;
+  --color-story-coral-pressed: #E15537;
+  --color-story-coral-text: #C6462C;
+  --color-story-coral-tint: #FBE5DF;
+  --color-story-teal: #1F8A80;
+  --color-story-teal-deep: #146F66;
+  --color-story-teal-tint: #E2F0EE;
+  --color-story-teal-border: #C9E0DC;
+  --color-story-teal-panel: #E9F2F0;
+  --color-story-dark: #23211E;
+  --color-story-amber-text: #7A5B15;
+  --color-story-amber-fill: #FDF0D9;
+  --color-story-amber-border: #EFD9AC;
+  --color-story-paper: #EFE7D6;
+  --color-story-map-1: #101A1E;
+  --color-story-map-2: #17242A;
+  --color-story-map-3: #2C4149;
+  --color-story-map-land: #223338;
+  --color-story-map-rail: #4A5A5E;
+
+  --font-story-sans: 'DM Sans', system-ui, sans-serif;
+  --font-story-serif: 'Instrument Serif', serif;
 }
 
 html, body, #root {
