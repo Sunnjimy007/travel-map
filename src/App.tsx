@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { isSupabaseConfigured } from './lib/supabase'
 import { useAuth } from './hooks/useAuth'
 import { useTravelData } from './hooks/useTravelData'
+import { useStories } from './hooks/useStories'
 import { SignIn } from './components/SignIn'
 import { Nav, type ViewName } from './components/Nav'
 import { MapView } from './components/MapView'
@@ -10,6 +11,9 @@ import { AddVisitForm } from './components/AddVisitForm'
 import { TimelineView } from './views/TimelineView'
 import { StatsView } from './views/StatsView'
 import { TableView } from './views/TableView'
+import { StoriesView } from './views/StoriesView'
+import { StopEditor } from './components/StopEditor'
+import { StoryPlayer } from './components/StoryPlayer'
 
 export default function App() {
   if (!isSupabaseConfigured) {
@@ -33,6 +37,7 @@ export default function App() {
 function SignedInGate() {
   const { user, loading: authLoading, signInWithGoogle, signOut } = useAuth()
   const data = useTravelData(user?.id ?? null)
+  const stories = useStories(user?.id ?? null)
 
   const [view, setView] = useState<ViewName>('map')
   const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null)
@@ -41,6 +46,9 @@ function SignedInGate() {
   const [pickMode, setPickMode] = useState(false)
   const [pendingPick, setPendingPick] = useState<{ lat: number; lng: number } | null>(null)
   const [flyTo, setFlyTo] = useState<{ lat: number; lng: number } | null>(null)
+  const [activeStoryId, setActiveStoryId] = useState<string | null>(null)
+  const [storiesMode, setStoriesMode] = useState<'edit' | 'play'>('play')
+  const [stopIndex, setStopIndex] = useState(0)
 
   if (authLoading) {
     return <div className="flex h-screen items-center justify-center text-ink/60">Loading…</div>
@@ -51,6 +59,19 @@ function SignedInGate() {
   }
 
   const selectedPlace = data.places.find((p) => p.id === selectedPlaceId) ?? null
+  const activeStory = stories.stories.find((s) => s.id === activeStoryId) ?? null
+
+  function openStory(storyId: string) {
+    setActiveStoryId(storyId)
+    setStoriesMode('play')
+  }
+
+  async function handleCreateStory(title: string, visitIds: string[]) {
+    const story = await stories.createStory(title, visitIds)
+    setActiveStoryId(story.id)
+    setStopIndex(0)
+    setStoriesMode('edit')
+  }
 
   function openPlace(placeId: string, visitId?: string | null) {
     const place = data.places.find((p) => p.id === placeId)
@@ -109,6 +130,16 @@ function SignedInGate() {
           <TimelineView places={data.places} onSelectVisit={(placeId, visitId) => openPlace(placeId, visitId)} />
         )}
         {view === 'stats' && <StatsView places={data.places} />}
+        {view === 'stories' && !activeStory && (
+          <StoriesView
+            places={data.places}
+            stories={stories.stories}
+            usedVisitIds={stories.usedVisitIds}
+            userEmail={user.email ?? null}
+            onOpenStory={openStory}
+            onCreateStory={handleCreateStory}
+          />
+        )}
         {view === 'table' && (
           <TableView
             places={data.places}
@@ -166,6 +197,35 @@ function SignedInGate() {
           onDeleteVisit={(visitId) => data.deleteVisit(visitId)}
           onAddPhotos={(visitId, files, startOrder) => data.addPhotosToVisit(visitId, files, startOrder)}
           onDeletePhoto={(photo) => data.deletePhoto(photo)}
+        />
+      )}
+
+      {activeStory && storiesMode === 'edit' && (
+        <StopEditor
+          story={activeStory}
+          stopIndex={stopIndex}
+          onNavigateStop={setStopIndex}
+          onClose={() => {
+            setActiveStoryId(null)
+            setStopIndex(0)
+          }}
+          onUpdateStop={stories.updateStop}
+          onUpdateVisit={data.updateVisit}
+          onUpdatePlace={(placeId, updates) => data.updatePlace(placeId, updates)}
+          onAddPhotos={data.addPhotosToVisit}
+          onDeletePhoto={data.deletePhoto}
+        />
+      )}
+
+      {activeStory && storiesMode === 'play' && (
+        <StoryPlayer
+          story={activeStory}
+          onClose={() => setActiveStoryId(null)}
+          onEdit={() => {
+            setStopIndex(0)
+            setStoriesMode('edit')
+          }}
+          onShare={() => stories.shareStory(activeStory.id)}
         />
       )}
 

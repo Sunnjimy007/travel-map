@@ -1,10 +1,11 @@
-export type ViewName = 'map' | 'timeline' | 'table' | 'stats'
+export type ViewName = 'map' | 'timeline' | 'table' | 'stats' | 'stories'
 
 const VIEWS: { key: ViewName; label: string }[] = [
   { key: 'map', label: 'Map' },
   { key: 'timeline', label: 'Timeline' },
   { key: 'table', label: 'Table' },
   { key: 'stats', label: 'Stats' },
+  { key: 'stories', label: 'Stories' },
 ]
 
 interface NavProps {
