@@ -89,14 +89,15 @@ export function SharedStoryView({ token }: SharedStoryViewProps) {
   const minutes = Math.max(1, Math.round((story.stops.length * 6.5) / 1))
 
   return (
-    <div className="min-h-screen bg-story-cream font-story-sans text-story-ink">
-      <div className="mx-auto flex max-w-lg items-center border-b border-story-hairline px-5 py-2.5 sm:px-6">
+    <div className="min-h-screen bg-story-board font-story-sans text-story-ink">
+    <div className="mx-auto flex min-h-screen max-w-lg flex-col bg-story-cream">
+      <div className="flex items-center border-b border-story-hairline px-5 py-2.5 sm:px-6">
         <span className="rounded-full bg-story-photo-tint px-3.5 py-2 text-[12px] text-story-faint">
           {window.location.host}/s/{token}
         </span>
       </div>
 
-      <div className="relative h-[300px] w-full overflow-hidden">
+      <div className="relative h-[300px] w-full flex-shrink-0 overflow-hidden">
         {cover ? (
           <PhotoThumb storagePath={cover.storage_path} className="h-full w-full object-cover" />
         ) : (
@@ -114,7 +115,7 @@ export function SharedStoryView({ token }: SharedStoryViewProps) {
         </div>
       </div>
 
-      <div className="mx-auto flex max-w-lg flex-col gap-4 px-5 py-5 sm:px-6">
+      <div className="flex flex-col gap-4 px-5 py-5 sm:px-6">
         <button
           onClick={() => setPlaying(true)}
           className="flex items-center justify-between rounded-2xl bg-story-coral px-5 py-[17px] text-left text-[16px] font-bold text-white"
@@ -159,6 +160,7 @@ export function SharedStoryView({ token }: SharedStoryViewProps) {
 
         <p className="pb-4 text-center text-[13px] text-story-faint">Total photos: {totalPhotos}</p>
       </div>
+    </div>
     </div>
   )
 }

@@ -162,7 +162,8 @@ export function StopEditor({
   const overflowCount = Math.max(0, visit.photos.length - 2)
 
   return (
-    <div className="fixed inset-0 z-40 flex flex-col bg-story-cream font-story-sans text-story-ink">
+    <div className="fixed inset-0 z-40 flex justify-center bg-story-board font-story-sans text-story-ink">
+    <div className="flex w-full max-w-[480px] flex-col bg-story-cream">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-story-hairline px-5 py-3">
         <button onClick={onClose} className="text-[15px] font-medium text-story-muted">
@@ -477,13 +478,14 @@ export function StopEditor({
         <Lightbox photos={lightbox.photos} startIndex={lightbox.index} onClose={() => setLightbox(null)} />
       )}
     </div>
+    </div>
   )
 }
 
 function StickerTray({ onPick, onClose }: { onPick: (emoji: string) => void; onClose: () => void }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-end bg-story-ink/35">
-      <div className="flex w-full flex-col gap-4 rounded-t-[24px] bg-white px-5 pb-7 pt-4.5">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-story-ink/35">
+      <div className="flex w-full max-w-[480px] flex-col gap-4 rounded-t-[24px] bg-white px-5 pb-7 pt-4.5">
         <div className="flex items-center justify-between">
           <h3 className="text-[17px] font-bold text-story-ink">Stickers</h3>
           <button onClick={onClose} className="text-[13px] font-bold text-story-coral-text">

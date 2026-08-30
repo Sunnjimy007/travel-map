@@ -383,8 +383,9 @@ export function StoryPlayer({ story, onClose, onEdit, onShare, readOnly = false 
   return (
     <div
       ref={wrapperRef}
-      className="fixed inset-0 z-50 overflow-hidden bg-story-map-1 font-story-sans"
+      className="fixed inset-0 z-50 flex justify-center overflow-hidden bg-story-map-1 font-story-sans"
     >
+      <div className="relative h-full w-full max-w-[480px] overflow-hidden">
       <div ref={containerRef} className="absolute inset-0" />
 
       {!hasEnded && (
@@ -617,6 +618,7 @@ export function StoryPlayer({ story, onClose, onEdit, onShare, readOnly = false 
           </button>
         </>
       )}
+      </div>
     </div>
   )
 }
