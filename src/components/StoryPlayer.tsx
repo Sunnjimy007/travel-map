@@ -335,6 +335,14 @@ export function StoryPlayer({ story, onClose, onEdit, onShare, readOnly = false 
     mapRef.current = map
 
     map.on('load', () => {
+      // The container's final CSS size (inside the phone-width column) can
+      // land a beat after the map's own construction — the ResizeObserver
+      // below usually catches it, but a WebGL canvas needs an explicit
+      // .resize() call to actually redraw at the corrected size, so force
+      // one now plus a couple of short-delay follow-ups as a safety net.
+      map.resize()
+      requestAnimationFrame(() => map.resize())
+      window.setTimeout(() => map.resize(), 300)
       applyPalette(map)
       map.setProjection({ type: 'globe' })
       loadedRef.current = true
