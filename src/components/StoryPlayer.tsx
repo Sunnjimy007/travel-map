@@ -394,7 +394,7 @@ export function StoryPlayer({ story, onClose, onEdit, onShare, readOnly = false 
       ref={wrapperRef}
       className="fixed inset-0 z-50 flex justify-center overflow-hidden bg-story-map-1 font-story-sans"
     >
-      <div className="relative h-full w-full max-w-[480px] overflow-hidden">
+      <div className="relative w-full max-w-[480px] flex-1 overflow-hidden">
       <div ref={containerRef} className="absolute inset-0" />
 
       {!hasEnded && (
