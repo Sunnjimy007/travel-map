@@ -395,7 +395,12 @@ export function StoryPlayer({ story, onClose, onEdit, onShare, readOnly = false 
       className="fixed inset-0 z-50 flex justify-center overflow-hidden bg-story-map-1 font-story-sans"
     >
       <div className="relative w-full max-w-[480px] flex-1 overflow-hidden">
-      <div ref={containerRef} className="absolute inset-0" />
+      {/* maplibre-gl.css ships its own ".maplibregl-map { position: relative }"
+          rule, which has equal specificity to and can load after Tailwind's
+          ".absolute" utility, silently winning the cascade. An inline style
+          always wins over any stylesheet, so this is set directly rather
+          than via className — same fix MapView.tsx already relies on. */}
+      <div ref={containerRef} style={{ position: 'absolute', inset: 0 }} />
 
       {!hasEnded && (
         <>
