@@ -102,12 +102,12 @@ export function StopEditor({
       await onUpdateStop(stop.id, { story_note: combined })
     }
     setAnswer('')
-    setPromptIndex((i) => Math.min(i + 1, prompts.length - 1))
+    setPromptIndex((i) => Math.min(i + 1, prompts.length))
   }
 
   function handleSkip() {
     setAnswer('')
-    setPromptIndex((i) => Math.min(i + 1, prompts.length - 1))
+    setPromptIndex((i) => Math.min(i + 1, prompts.length))
   }
 
   async function handleRegenerateFact() {
@@ -326,39 +326,48 @@ export function StopEditor({
 
         {/* Guided prompt */}
         <div className="mb-3 flex flex-col gap-2.5 rounded-[18px] border border-story-hairline bg-white p-3.5">
-          <div className="flex items-center justify-between">
+          {promptIndex < prompts.length && (
+            <>
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold uppercase tracking-[.14em] text-story-teal">
+                  Question {promptIndex + 1} of {prompts.length}
+                </span>
+                <div className="flex gap-1.5">
+                  {prompts.map((_, i) => (
+                    <span
+                      key={i}
+                      className={`h-1.5 w-1.5 rounded-full ${i <= promptIndex ? 'bg-story-teal' : 'bg-story-divider'}`}
+                    />
+                  ))}
+                </div>
+              </div>
+              <h3 className="font-story-serif text-[22px] leading-[1.15] text-story-ink">{prompts[promptIndex]}</h3>
+              <textarea
+                value={answer}
+                onChange={(e) => setAnswer(e.target.value)}
+                rows={2}
+                placeholder="Type an answer…"
+                className="rounded-lg border border-story-hairline bg-story-cream px-2.5 py-2 text-[14px] text-story-body"
+              />
+              <div className="flex items-center gap-2 border-t border-story-hairline pt-2">
+                <button onClick={handleSkip} className="text-[13px] font-bold text-story-coral-text">
+                  Skip
+                </button>
+                <span className="flex-1" />
+                <button
+                  onClick={handleNextQuestion}
+                  className="rounded-[10px] bg-story-dark px-3.5 py-2 text-[13px] font-bold text-white"
+                >
+                  {promptIndex === prompts.length - 1 ? 'Done' : 'Next question →'}
+                </button>
+              </div>
+            </>
+          )}
+          {promptIndex >= prompts.length && (
             <span className="text-[11px] font-bold uppercase tracking-[.14em] text-story-teal">
-              Question {promptIndex + 1} of {prompts.length}
+              All questions answered
             </span>
-            <div className="flex gap-1.5">
-              {prompts.map((_, i) => (
-                <span
-                  key={i}
-                  className={`h-1.5 w-1.5 rounded-full ${i <= promptIndex ? 'bg-story-teal' : 'bg-story-divider'}`}
-                />
-              ))}
-            </div>
-          </div>
-          <h3 className="font-story-serif text-[22px] leading-[1.15] text-story-ink">{prompts[promptIndex]}</h3>
-          <textarea
-            value={answer}
-            onChange={(e) => setAnswer(e.target.value)}
-            rows={2}
-            placeholder="Type an answer…"
-            className="rounded-lg border border-story-hairline bg-story-cream px-2.5 py-2 text-[14px] text-story-body"
-          />
-          <div className="flex items-center gap-2 border-t border-story-hairline pt-2">
-            <button onClick={handleSkip} className="text-[13px] font-bold text-story-coral-text">
-              Skip
-            </button>
-            <span className="flex-1" />
-            <button
-              onClick={handleNextQuestion}
-              className="rounded-[10px] bg-story-dark px-3.5 py-2 text-[13px] font-bold text-white"
-            >
-              Next question →
-            </button>
-          </div>
+          )}
           {stop.story_note && (
             <p className="whitespace-pre-wrap border-t border-story-hairline pt-2 text-[13px] text-story-muted">
               {stop.story_note}
