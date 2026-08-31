@@ -133,6 +133,7 @@ export function StoryPlayer({ story, onClose, onEdit, onShare, readOnly = false 
     stops.forEach((s, i) => {
       const el = document.createElement('div')
       el.style.position = 'relative'
+      el.style.display = 'inline-block'
       const dot = document.createElement('div')
       dot.style.borderRadius = '50%'
       if (ended) {
