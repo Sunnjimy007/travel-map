@@ -3,7 +3,6 @@ import { format } from 'date-fns'
 import type { PlaceWithVisits, VisitPhoto, VisitWithPhotos } from '../types'
 import { PhotoThumb } from './PhotoThumb'
 import { Lightbox } from './Lightbox'
-import { GooglePhotosButton } from './GooglePhotosButton'
 import { MAX_PHOTOS_PER_VISIT } from '../lib/constants'
 
 interface PlaceCardProps {
@@ -91,14 +90,6 @@ function PhotoStrip({
           </label>
         )}
       </div>
-      {editing && (
-        <div className="mt-1.5">
-          <GooglePhotosButton
-            remainingSlots={MAX_PHOTOS_PER_VISIT - photos.length}
-            onPicked={(picked) => onAddFiles(picked.map((p) => p.file))}
-          />
-        </div>
-      )}
     </div>
   )
 }

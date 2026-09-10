@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { searchTown, reverseGeocode, type GeocodeResult } from '../lib/geocode'
 import type { PlaceWithVisits } from '../types'
-import { GooglePhotosButton } from './GooglePhotosButton'
-import type { PickedPhoto } from '../lib/googlePhotos'
+import { readPhotoExif } from '../lib/exif'
 import { MAX_PHOTOS_PER_VISIT } from '../lib/constants'
 
 interface AddVisitFormProps {
@@ -133,19 +132,21 @@ export function AddVisitForm({
     }
   }
 
-  function onFilesChosen(files: FileList | null) {
+  async function onFilesChosen(files: FileList | null) {
     if (!files) return
     const arr = Array.from(files).slice(0, MAX_PHOTOS_PER_VISIT - photos.length)
+    if (arr.length === 0) return
     setPhotos((prev) => [...prev, ...arr].slice(0, MAX_PHOTOS_PER_VISIT))
-  }
 
-  function onGooglePhotosPicked(picked: PickedPhoto[]) {
-    setPhotos((prev) => [...prev, ...picked.map((p) => p.file)].slice(0, MAX_PHOTOS_PER_VISIT))
-    const newTimes = picked.map((p) => p.createTime).filter((t): t is string => !!t)
+    // The native picker doesn't hand us metadata like Google Photos' API did,
+    // so read each photo's own EXIF date client-side instead — same prefill
+    // behaviour, no server round-trip. Never blocks the upload if it's missing.
+    const exifResults = await Promise.all(arr.map(readPhotoExif))
+    const newTimes = exifResults
+      .map((r) => r.dateTime?.toISOString())
+      .filter((t): t is string => !!t)
     if (newTimes.length === 0) return
     photoCreateTimesRef.current = [...photoCreateTimesRef.current, ...newTimes]
-    // Google's metadata gives us a date, not a town — prefill only the
-    // date, and only while the user hasn't already set one themselves.
     setVisitedDate((current) => current || earliestDate(photoCreateTimesRef.current) || current)
   }
 
@@ -160,13 +161,6 @@ export function AddVisitForm({
           <button type="button" onClick={onClose} className="text-ink/40 hover:text-ink">
             &times;
           </button>
-        </div>
-
-        <div className="mb-4">
-          <GooglePhotosButton remainingSlots={MAX_PHOTOS_PER_VISIT - photos.length} onPicked={onGooglePhotosPicked} variant="primary" />
-          <p className="mt-1.5 text-[11px] text-ink/50">
-            Fills in the date from the photo — you'll still need to set the town.
-          </p>
         </div>
 
         <div className="mb-4">
@@ -197,6 +191,10 @@ export function AddVisitForm({
               </label>
             )}
           </div>
+          <p className="mt-1.5 text-[11px] text-ink/50">
+            Opens your phone or computer's own photo picker. Fills in the date from the photo when it has one —
+            you'll still need to set the town.
+          </p>
         </div>
 
         <div className="mb-4 flex border border-ink">
