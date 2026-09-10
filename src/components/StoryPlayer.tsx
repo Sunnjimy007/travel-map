@@ -334,32 +334,46 @@ export function StoryPlayer({ story, onClose, onEdit, onShare, readOnly = false 
     })
     mapRef.current = map
 
+    map.on('error', (e) => {
+      // eslint-disable-next-line no-console
+      console.error('[StoryPlayer] map error:', e.error?.message ?? e)
+    })
+
     map.on('load', () => {
-      // The container's final CSS size (inside the phone-width column) can
-      // land a beat after the map's own construction — the ResizeObserver
-      // below usually catches it, but a WebGL canvas needs an explicit
-      // .resize() call to actually redraw at the corrected size, so force
-      // one now plus a couple of short-delay follow-ups as a safety net.
-      map.resize()
-      requestAnimationFrame(() => map.resize())
-      window.setTimeout(() => map.resize(), 300)
-      applyPalette(map)
-      map.setProjection({ type: 'globe' })
-      loadedRef.current = true
-      map.addSource('story-route', { type: 'geojson', data: routeLine(stops) })
-      map.addLayer({
-        id: 'story-route-line',
-        type: 'line',
-        source: 'story-route',
-        paint: {
-          'line-color': CORAL,
-          'line-width': 2,
-          'line-dasharray': [2, 2],
-          'line-opacity': 0.6,
-        },
-      })
-      syncMarkers(0, false)
-      startStop(0, false)
+      // eslint-disable-next-line no-console
+      console.log('[StoryPlayer] map load fired, stops:', stops.length)
+      try {
+        // The container's final CSS size (inside the phone-width column) can
+        // land a beat after the map's own construction — the ResizeObserver
+        // below usually catches it, but a WebGL canvas needs an explicit
+        // .resize() call to actually redraw at the corrected size, so force
+        // one now plus a couple of short-delay follow-ups as a safety net.
+        map.resize()
+        requestAnimationFrame(() => map.resize())
+        window.setTimeout(() => map.resize(), 300)
+        applyPalette(map)
+        map.setProjection({ type: 'globe' })
+        loadedRef.current = true
+        map.addSource('story-route', { type: 'geojson', data: routeLine(stops) })
+        map.addLayer({
+          id: 'story-route-line',
+          type: 'line',
+          source: 'story-route',
+          paint: {
+            'line-color': CORAL,
+            'line-width': 2,
+            'line-dasharray': [2, 2],
+            'line-opacity': 0.6,
+          },
+        })
+        syncMarkers(0, false)
+        startStop(0, false)
+        // eslint-disable-next-line no-console
+        console.log('[StoryPlayer] load handler completed, markers:', markersRef.current.length)
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.error('[StoryPlayer] exception in load handler:', err)
+      }
     })
 
     const resizeObserver = new ResizeObserver(() => map.resize())
