@@ -4,7 +4,7 @@ interface SignInProps {
 
 export function SignIn({ onSignIn }: SignInProps) {
   return (
-    <div className="flex h-screen w-screen items-center justify-center bg-ink text-ground">
+    <div className="flex h-dvh w-screen items-center justify-center bg-ink text-ground">
       <div className="text-center">
         <div className="mx-auto mb-4 h-3.5 w-3.5 bg-sage" />
         <h1 className="mb-2 text-[42px] font-extrabold tracking-[-.015em]">Post Mark</h1>

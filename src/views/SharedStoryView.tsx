@@ -65,7 +65,7 @@ export function SharedStoryView({ token }: SharedStoryViewProps) {
 
   if (loading) {
     return (
-      <div className="flex h-screen items-center justify-center bg-story-cream font-story-sans text-story-faint">
+      <div className="flex h-dvh items-center justify-center bg-story-cream font-story-sans text-story-faint">
         Loading story…
       </div>
     )
@@ -73,7 +73,7 @@ export function SharedStoryView({ token }: SharedStoryViewProps) {
 
   if (error || !story) {
     return (
-      <div className="flex h-screen flex-col items-center justify-center gap-2 bg-story-cream px-8 text-center font-story-sans">
+      <div className="flex h-dvh flex-col items-center justify-center gap-2 bg-story-cream px-8 text-center font-story-sans">
         <p className="font-story-serif text-[26px] text-story-ink">Story not found</p>
         <p className="text-[14px] text-story-faint">{error ?? 'This link may have been revoked.'}</p>
       </div>
@@ -89,8 +89,8 @@ export function SharedStoryView({ token }: SharedStoryViewProps) {
   const minutes = Math.max(1, Math.round((story.stops.length * 6.5) / 1))
 
   return (
-    <div className="min-h-screen bg-story-board font-story-sans text-story-ink">
-    <div className="mx-auto flex min-h-screen max-w-lg flex-col bg-story-cream">
+    <div className="min-h-dvh bg-story-board font-story-sans text-story-ink">
+    <div className="mx-auto flex min-h-dvh max-w-lg flex-col bg-story-cream">
       <div className="flex items-center border-b border-story-hairline px-5 py-2.5 sm:px-6">
         <span className="rounded-full bg-story-photo-tint px-3.5 py-2 text-[12px] text-story-faint">
           {window.location.host}/s/{token}

@@ -18,7 +18,7 @@ import { StoryPlayer } from './components/StoryPlayer'
 export default function App() {
   if (!isSupabaseConfigured) {
     return (
-      <div className="flex h-screen w-screen items-center justify-center bg-ink p-8 text-center text-ground">
+      <div className="flex h-dvh w-screen items-center justify-center bg-ink p-8 text-center text-ground">
         <div className="max-w-md">
           <h1 className="mb-3 text-2xl font-extrabold">Supabase isn't configured yet</h1>
           <p className="text-ground/60">
@@ -51,7 +51,7 @@ function SignedInGate() {
   const [stopIndex, setStopIndex] = useState(0)
 
   if (authLoading) {
-    return <div className="flex h-screen items-center justify-center text-ink/60">Loading…</div>
+    return <div className="flex h-dvh items-center justify-center text-ink/60">Loading…</div>
   }
 
   if (!user) {
@@ -108,7 +108,7 @@ function SignedInGate() {
   }
 
   return (
-    <div className="flex h-screen w-screen flex-col overflow-hidden bg-ground">
+    <div className="flex h-dvh w-screen flex-col overflow-hidden bg-ground">
       <Nav active={view} onChange={setView} onSignOut={signOut} />
 
       <div className="relative flex-1 overflow-hidden pb-14 md:pb-0">
