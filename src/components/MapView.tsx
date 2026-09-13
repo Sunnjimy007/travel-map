@@ -146,35 +146,39 @@ export function MapView({
     clusterIndexRef.current = index
   }
 
+  // A teardrop pin (white outline + drop shadow) reads far better than a flat
+  // square against busy backgrounds like satellite imagery — the square was
+  // easy to lose against the photo underneath it once zoomed in.
+  const PIN_PATH =
+    'M12 0C6.477 0 2 4.477 2 10c0 7.5 10 21 10 21s10-13.5 10-21C22 4.477 17.523 0 12 0z'
+
+  function pinSvg(size: number, opacity: number): string {
+    const h = Math.round(size * 1.29)
+    return `<svg width="${size}" height="${h}" viewBox="0 0 24 31" style="display:block; filter: drop-shadow(0 1px 3px rgba(0,0,0,.5));">
+      <path d="${PIN_PATH}" fill="${CORAL}" fill-opacity="${opacity}" stroke="#ffffff" stroke-width="1.5"/>
+      <circle cx="12" cy="10" r="4" fill="#ffffff" fill-opacity="${opacity}"/>
+    </svg>`
+  }
+
   function renderMarkerContent(el: HTMLDivElement, place: PlaceWithVisits, selected: boolean) {
     el.innerHTML = ''
     el.style.position = 'relative'
     el.style.display = 'inline-block'
     el.style.cursor = 'pointer'
+    el.style.lineHeight = '0'
 
-    const square = document.createElement('div')
-    const size = selected ? 15 : 11
-    square.style.width = `${size}px`
-    square.style.height = `${size}px`
-    square.style.background = CORAL
-    square.style.opacity = selected ? '1' : '0.62'
-    square.style.transition = 'width 120ms ease-out, height 120ms ease-out'
-    if (selected) {
-      square.style.boxShadow = `0 0 0 6px ${CORAL}59`
-    }
-    el.appendChild(square)
+    const pin = document.createElement('div')
+    const size = selected ? 34 : 26
+    pin.innerHTML = pinSvg(size, selected ? 1 : 0.82)
+    pin.style.transition = 'transform 120ms ease-out'
+    pin.style.transformOrigin = 'bottom center'
+    el.appendChild(pin)
 
     el.onmouseenter = () => {
-      if (!selected) {
-        square.style.width = '13px'
-        square.style.height = '13px'
-      }
+      if (!selected) pin.style.transform = 'scale(1.15)'
     }
     el.onmouseleave = () => {
-      if (!selected) {
-        square.style.width = '11px'
-        square.style.height = '11px'
-      }
+      if (!selected) pin.style.transform = 'scale(1)'
     }
 
     if (selected) {
@@ -284,7 +288,7 @@ export function MapView({
             e.stopPropagation()
             onSelectRef.current(placeId)
           })
-          const marker = new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat([lng, lat]).addTo(map)
+          const marker = new maplibregl.Marker({ element: el, anchor: 'bottom' }).setLngLat([lng, lat]).addTo(map)
           markersRef.current.set(placeId, { marker, el })
         }
       }
