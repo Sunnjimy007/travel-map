@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { searchTown, reverseGeocode, type GeocodeResult } from '../lib/geocode'
 import type { PlaceWithVisits } from '../types'
 import { readPhotoExif } from '../lib/exif'
@@ -59,6 +59,18 @@ export function AddVisitForm({
   useEffect(() => {
     selectedRef.current = selected
   }, [selected])
+
+  // Create each photo's preview URL once per File, not on every render —
+  // URL.createObjectURL() called inline in JSX (as this used to) leaks a
+  // fresh, never-revoked blob URL on every keystroke elsewhere in the form,
+  // which on memory-constrained mobile browsers can make the previews
+  // silently fail to render after enough re-renders.
+  const photoPreviewUrls = useMemo(() => photos.map((f) => URL.createObjectURL(f)), [photos])
+  useEffect(() => {
+    return () => {
+      for (const url of photoPreviewUrls) URL.revokeObjectURL(url)
+    }
+  }, [photoPreviewUrls])
 
   useEffect(() => {
     if (!pendingPick) return
@@ -196,9 +208,9 @@ export function AddVisitForm({
         <div className="mb-4">
           <label className="mb-1 block text-[12px] text-ink/60">Photos (up to {MAX_PHOTOS_PER_VISIT})</label>
           <div className="flex flex-wrap gap-2">
-            {photos.map((f, i) => (
+            {photos.map((_, i) => (
               <div key={i} className="relative h-20 w-20 bg-surface">
-                <img src={URL.createObjectURL(f)} className="h-full w-full object-cover" />
+                <img src={photoPreviewUrls[i]} className="h-full w-full object-cover" />
                 <button
                   type="button"
                   onClick={() => setPhotos((prev) => prev.filter((_, idx) => idx !== i))}
