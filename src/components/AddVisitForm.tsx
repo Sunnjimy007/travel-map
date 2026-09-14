@@ -50,6 +50,15 @@ export function AddVisitForm({
   const photoCreateTimesRef = useRef<string[]>([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [locatingFromPhoto, setLocatingFromPhoto] = useState(false)
+
+  // Guards the EXIF-location prefill below against a stale closure — it
+  // needs the *latest* selection, not whatever "selected" was when the
+  // file input's onChange handler was created.
+  const selectedRef = useRef<GeocodeResult | null>(null)
+  useEffect(() => {
+    selectedRef.current = selected
+  }, [selected])
 
   useEffect(() => {
     if (!pendingPick) return
@@ -139,15 +148,36 @@ export function AddVisitForm({
     setPhotos((prev) => [...prev, ...arr].slice(0, MAX_PHOTOS_PER_VISIT))
 
     // The native picker doesn't hand us metadata like Google Photos' API did,
-    // so read each photo's own EXIF date client-side instead — same prefill
-    // behaviour, no server round-trip. Never blocks the upload if it's missing.
+    // so read each photo's own EXIF date/GPS client-side instead — same
+    // prefill behaviour, no server round-trip. Never blocks the upload if
+    // either is missing.
     const exifResults = await Promise.all(arr.map(readPhotoExif))
+
     const newTimes = exifResults
       .map((r) => r.dateTime?.toISOString())
       .filter((t): t is string => !!t)
-    if (newTimes.length === 0) return
-    photoCreateTimesRef.current = [...photoCreateTimesRef.current, ...newTimes]
-    setVisitedDate((current) => current || earliestDate(photoCreateTimesRef.current) || current)
+    if (newTimes.length > 0) {
+      photoCreateTimesRef.current = [...photoCreateTimesRef.current, ...newTimes]
+      setVisitedDate((current) => current || earliestDate(photoCreateTimesRef.current) || current)
+    }
+
+    // Only prefill from GPS while nothing's been picked yet — a search
+    // result, an existing pick, or an earlier photo in this same batch.
+    if (selectedRef.current) return
+    const withGps = exifResults.find((r) => r.latitude != null && r.longitude != null)
+    if (!withGps) return
+    setLocatingFromPhoto(true)
+    try {
+      const r = await reverseGeocode(withGps.latitude!, withGps.longitude!)
+      if (selectedRef.current) return // user picked something while we were geocoding
+      setSelected(r)
+      setQuery(r.town ? `${r.town}, ${r.country}` : query)
+    } catch {
+      // Reverse geocoding is a convenience, not a requirement — the town
+      // field just stays blank and the user fills it in by hand.
+    } finally {
+      setLocatingFromPhoto(false)
+    }
   }
 
   return (
@@ -192,8 +222,8 @@ export function AddVisitForm({
             )}
           </div>
           <p className="mt-1.5 text-[11px] text-ink/50">
-            Opens your phone or computer's own photo picker. Fills in the date from the photo when it has one —
-            you'll still need to set the town.
+            Opens your phone or computer's own photo picker. Fills in the date, and the town if the photo has
+            location data.
           </p>
         </div>
 
@@ -240,10 +270,13 @@ export function AddVisitForm({
                 }}
                 onKeyDown={(e) => e.key === 'Enter' && e.preventDefault()}
               />
-              {searching && (
+              {(searching || locatingFromPhoto) && (
                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-ink/40">…</span>
               )}
             </div>
+            {locatingFromPhoto && (
+              <p className="text-[12px] text-ink/50">Finding the town from your photo's location…</p>
+            )}
             <button
               type="button"
               onClick={() => {
