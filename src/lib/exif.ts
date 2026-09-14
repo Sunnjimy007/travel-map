@@ -11,7 +11,10 @@ export interface PhotoExif {
 // null value as "fall back to manual entry" rather than an error (PRD §11).
 export async function readPhotoExif(file: File): Promise<PhotoExif> {
   try {
-    const data = await parse(file, { pick: ['DateTimeOriginal', 'CreateDate'], gps: true })
+    // A top-level "pick" disables every block not named in it — including
+    // GPS — regardless of "gps: true" alongside it (per exifr's own docs).
+    // Scoping the pick to the exif block only keeps GPS parsing enabled.
+    const data = await parse(file, { exif: { pick: ['DateTimeOriginal', 'CreateDate'] }, gps: true })
     if (!data) return { dateTime: null, latitude: null, longitude: null }
     const dateTime: Date | null = data.DateTimeOriginal ?? data.CreateDate ?? null
     const latitude = typeof data.latitude === 'number' ? data.latitude : null
