@@ -52,10 +52,16 @@ export function useStories(userId: string | null) {
       if (err) throw err
 
       const result = (data ?? []) as unknown as StoryWithStops[]
-      // Photo order is sorted client-side rather than via nested foreign-table
-      // order clauses (fragile once you're three joins deep) — a plain sort
-      // here is simpler and just as correct.
+      // Sorted client-side rather than trusted to the nested foreign-table
+      // order clauses above — fragile once you're three joins deep, and in
+      // practice the .order('sort_order', {referencedTable: 'story_stops'})
+      // clause stopped reliably applying once each stop gained a second
+      // nested embed (storyPhotos), silently returning stops out of their
+      // real chronological order (routes rendered as a fan/star instead of
+      // following the trip). A plain sort here is simpler and just as
+      // correct regardless of what Postgres/PostgREST decide to do.
       for (const story of result) {
+        story.stops.sort((a, b) => a.sort_order - b.sort_order)
         for (const stop of story.stops) {
           stop.visit.photos.sort((a, b) => a.sort_order - b.sort_order)
           stop.storyPhotos.sort((a, b) => a.sort_order - b.sort_order)

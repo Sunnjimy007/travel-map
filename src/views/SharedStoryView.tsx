@@ -57,6 +57,9 @@ export function SharedStoryView({ token }: SharedStoryViewProps) {
         return
       }
       const result = data as unknown as StoryWithStops
+      // See useStories.ts refresh() — the nested order clause above isn't
+      // reliably applied, so stops are re-sorted client-side too.
+      result.stops.sort((a, b) => a.sort_order - b.sort_order)
       for (const stop of result.stops) {
         stop.visit.photos.sort((a, b) => a.sort_order - b.sort_order)
         stop.storyPhotos.sort((a, b) => a.sort_order - b.sort_order)
