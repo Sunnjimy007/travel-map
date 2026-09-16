@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# Copied from node_modules/maplibre-gl at dev/build time (scripts/copy-maplibre-worker.mjs)
+public/maplibre
+
 # Local reference material — not part of the deployed app
 UI_mockups
 Images
