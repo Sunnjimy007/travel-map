@@ -228,6 +228,7 @@ export function StoryPlayer({ story, onClose, onEdit, onShare, readOnly = false 
   function startStop(index: number, resuming: boolean) {
     const s = stops[index]
     if (!s) return
+    mapRef.current?.resize()
     const total = totalDuration(s, reducedMotion)
     if (!resuming) {
       flyToStop(index)
@@ -237,6 +238,7 @@ export function StoryPlayer({ story, onClose, onEdit, onShare, readOnly = false 
       jumpToStop(index)
     }
     syncRoute(index)
+    syncMarkers(index, false)
     const remaining = resuming ? remainingRef.current : total
     stopStartRef.current = Date.now() - (total - remaining)
     clearTimers()
@@ -460,7 +462,7 @@ export function StoryPlayer({ story, onClose, onEdit, onShare, readOnly = false 
           tall photo card can never cover a pin; expands to fill the whole
           screen once the story ends (map.resize() runs in end()/watchAgain()
           to match). */}
-      <div className="relative w-full flex-shrink-0 overflow-hidden" style={{ height: hasEnded ? '100%' : '56%' }}>
+      <div className="relative w-full flex-shrink-0 overflow-hidden" style={{ height: hasEnded ? '100%' : '48%' }}>
         <div ref={containerRef} style={{ position: 'absolute', inset: 0 }} />
 
         {!hasEnded && (
@@ -533,7 +535,7 @@ export function StoryPlayer({ story, onClose, onEdit, onShare, readOnly = false 
         <div className="relative min-h-0 flex-1 overflow-y-auto bg-story-cream">
           {isPlaying && currentStoryPhoto && (
             <div key={stop.id} className={`p-3.5 ${cardEntering ? 'story-card-enter' : ''}`}>
-              <div className="relative mb-3 h-[140px] w-full overflow-hidden rounded-2xl bg-story-photo">
+              <div className="relative mb-3 h-[190px] w-full overflow-hidden rounded-2xl bg-story-photo">
                 <PhotoThumb storagePath={currentStoryPhoto.photo.storage_path} className="h-full w-full object-cover" />
                 {photoStickers.map((s, i) => (
                   <div
