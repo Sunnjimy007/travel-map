@@ -372,6 +372,8 @@ export function StoryPlayer({ story, onClose, onEdit, onShare, readOnly = false 
     })
 
     map.on('load', () => {
+      // eslint-disable-next-line no-console
+      console.log('[StoryPlayer] load fired, stops:', stops.length)
       try {
         map.resize()
         requestAnimationFrame(() => map.resize())
@@ -388,6 +390,8 @@ export function StoryPlayer({ story, onClose, onEdit, onShare, readOnly = false 
         })
         syncMarkers(0, false)
         startStop(0, false)
+        // eslint-disable-next-line no-console
+        console.log('[StoryPlayer] load handler completed, markers:', markersRef.current.length)
       } catch (err) {
         // eslint-disable-next-line no-console
         console.error('[StoryPlayer] exception in load handler:', err)
