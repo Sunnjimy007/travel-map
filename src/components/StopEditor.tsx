@@ -60,13 +60,15 @@ export function StopEditor({
   }, [stop?.id])
 
   const activeStoryPhoto = stop?.storyPhotos[activePhotoIndex]
-  // Each photo gets a deterministic prompt from the pool (cycled by its
-  // position in the filmstrip) rather than a shared, manually-advanced
-  // question — that was the bug in the old per-stop flow (the same
-  // question kept repeating once you ran past the pool's end).
-  const activePrompt = GUIDED_PROMPTS[activePhotoIndex % GUIDED_PROMPTS.length]
+  const [promptIndex, setPromptIndex] = useState(0)
+  const activePrompt = GUIDED_PROMPTS[promptIndex]
 
   useEffect(() => {
+    const stored = activeStoryPhoto?.prompt_id ? GUIDED_PROMPTS.indexOf(activeStoryPhoto.prompt_id) : -1
+    // Default to a different suggestion per photo (cycled by filmstrip
+    // position) so the picker doesn't start on the same question every
+    // time — but it's just a starting point; the dropdown picks the rest.
+    setPromptIndex(stored >= 0 ? stored : activePhotoIndex % GUIDED_PROMPTS.length)
     setAnswerDraft(activeStoryPhoto?.answer ?? '')
   }, [activeStoryPhoto?.id])
 
@@ -288,22 +290,20 @@ export function StopEditor({
             {/* Guided prompt (per photo) */}
             {activeStoryPhoto && (
               <div className="mb-3 flex flex-col gap-2.5 rounded-[18px] border border-story-hairline bg-white p-3.5">
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold uppercase tracking-[.14em] text-story-teal">
-                    This photo · question {(activePhotoIndex % GUIDED_PROMPTS.length) + 1} of {GUIDED_PROMPTS.length}
-                  </span>
-                  <div className="flex gap-1.5">
-                    {[0, 1, 2].map((i) => (
-                      <span
-                        key={i}
-                        className={`h-1.5 w-1.5 rounded-full ${
-                          i <= activePhotoIndex % GUIDED_PROMPTS.length ? 'bg-story-teal' : 'bg-story-divider'
-                        }`}
-                      />
-                    ))}
-                  </div>
-                </div>
-                <h3 className="font-story-serif text-[22px] leading-[1.15] text-story-ink">{activePrompt}</h3>
+                <span className="text-[11px] font-bold uppercase tracking-[.14em] text-story-teal">
+                  This photo's question
+                </span>
+                <select
+                  value={promptIndex}
+                  onChange={(e) => setPromptIndex(Number(e.target.value))}
+                  className="rounded-xl border border-story-hairline bg-story-cream px-3 py-2.5 font-story-serif text-[19px] leading-[1.15] text-story-ink"
+                >
+                  {GUIDED_PROMPTS.map((p, i) => (
+                    <option key={p} value={i}>
+                      {p}
+                    </option>
+                  ))}
+                </select>
                 <textarea
                   value={answerDraft}
                   onChange={(e) => setAnswerDraft(e.target.value)}
