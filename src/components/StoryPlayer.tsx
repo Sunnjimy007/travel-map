@@ -337,7 +337,7 @@ export function StoryPlayer({ story, onClose, onEdit, onShare, readOnly = false 
     setIsPlaying(true)
     const map = mapRef.current
     if (map?.getLayer('story-route-line')) {
-      map.setPaintProperty('story-route-line', 'line-dasharray', [2, 2])
+      map.setPaintProperty('story-route-line', 'line-dasharray', [1.6, 1.2])
       map.setPaintProperty('story-route-line', 'line-opacity', 0.75)
     }
     // Same as end() in reverse — the map region shrinks back to 56% here.
@@ -408,7 +408,12 @@ export function StoryPlayer({ story, onClose, onEdit, onShare, readOnly = false 
           id: 'story-route-line',
           type: 'line',
           source: 'story-route',
-          paint: { 'line-color': CORAL, 'line-width': 2, 'line-dasharray': [2, 2], 'line-opacity': 0.75 },
+          // Round caps/joins so a dash landing short of the line's true end
+          // (dasharray patterns don't reliably complete exactly at the
+          // endpoint) still reads as touching the pin instead of visibly
+          // stopping short of it.
+          layout: { 'line-cap': 'round', 'line-join': 'round' },
+          paint: { 'line-color': CORAL, 'line-width': 2.5, 'line-dasharray': [1.6, 1.2], 'line-opacity': 0.75 },
         })
         syncMarkers(0, false)
         startStop(0, false)
