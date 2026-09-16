@@ -132,6 +132,22 @@ export function StoryPlayer({ story, onClose, onEdit, onShare, readOnly = false 
     intervalRef.current = null
   }
 
+  function pinLabel(town: string, color: string): HTMLDivElement {
+    const label = document.createElement('div')
+    label.textContent = town
+    label.style.position = 'absolute'
+    label.style.left = '100%'
+    label.style.top = '50%'
+    label.style.transform = 'translateY(-50%)'
+    label.style.marginLeft = '6px'
+    label.style.whiteSpace = 'nowrap'
+    label.style.font = '700 11px DM Sans, sans-serif'
+    label.style.letterSpacing = '.02em'
+    label.style.color = color
+    label.style.textShadow = '0 1px 3px rgba(0,0,0,.6)'
+    return label
+  }
+
   function syncMarkers(activeIndex: number, ended: boolean) {
     const map = mapRef.current
     if (!map || !loadedRef.current) return
@@ -157,22 +173,12 @@ export function StoryPlayer({ story, onClose, onEdit, onShare, readOnly = false 
         ring.style.borderRadius = '50%'
         ring.style.animation = 'story-pulse-ring 2.2s ease-out infinite'
         el.appendChild(ring)
+        el.appendChild(pinLabel(s.visit.place.town, 'rgba(255,255,255,.9)'))
       } else if (i === activeIndex + 1) {
         dot.style.width = dot.style.height = '11px'
         dot.style.background = '#FFFFFF'
         dot.style.boxShadow = `0 0 0 3px ${CORAL}48`
-        const label = document.createElement('div')
-        label.textContent = 'NEXT'
-        label.style.position = 'absolute'
-        label.style.left = '100%'
-        label.style.top = '50%'
-        label.style.transform = 'translateY(-50%)'
-        label.style.marginLeft = '6px'
-        label.style.whiteSpace = 'nowrap'
-        label.style.font = '700 10px DM Sans, sans-serif'
-        label.style.letterSpacing = '.12em'
-        label.style.color = 'rgba(255,255,255,.6)'
-        el.appendChild(label)
+        el.appendChild(pinLabel(s.visit.place.town, 'rgba(255,255,255,.6)'))
       } else if (i < activeIndex) {
         dot.style.width = dot.style.height = '9px'
         dot.style.background = 'rgba(255,255,255,.28)'
@@ -298,7 +304,6 @@ export function StoryPlayer({ story, onClose, onEdit, onShare, readOnly = false 
     setHasEnded(true)
     setIsPlaying(false)
     setProgress(1)
-    fitAll()
     syncMarkers(currentIndexRef.current, true)
     const map = mapRef.current
     const src = map?.getSource('story-route') as maplibregl.GeoJSONSource | undefined
@@ -307,6 +312,18 @@ export function StoryPlayer({ story, onClose, onEdit, onShare, readOnly = false 
       map.setPaintProperty('story-route-line', 'line-dasharray', [1, 0])
       map.setPaintProperty('story-route-line', 'line-opacity', 0.5)
     }
+    // The map region grows from a 56% split to full-height once hasEnded
+    // flips — that layout change lands after this function returns, so
+    // resize (and the bounds fit that depends on the new size) has to
+    // happen afterward, not now.
+    requestAnimationFrame(() => {
+      map?.resize()
+      fitAll()
+    })
+    window.setTimeout(() => {
+      map?.resize()
+      fitAll()
+    }, 350)
   }
 
   function watchAgain() {
@@ -321,6 +338,9 @@ export function StoryPlayer({ story, onClose, onEdit, onShare, readOnly = false 
       map.setPaintProperty('story-route-line', 'line-dasharray', [2, 2])
       map.setPaintProperty('story-route-line', 'line-opacity', 0.75)
     }
+    // Same as end() in reverse — the map region shrinks back to 56% here.
+    requestAnimationFrame(() => map?.resize())
+    window.setTimeout(() => map?.resize(), 350)
     startStop(0, false)
   }
 
@@ -435,65 +455,85 @@ export function StoryPlayer({ story, onClose, onEdit, onShare, readOnly = false 
 
   return (
     <div ref={wrapperRef} className="fixed inset-0 z-50 flex justify-center overflow-hidden bg-story-map-1 font-story-sans">
-      <div className="relative w-full max-w-[480px] flex-1 overflow-hidden">
-      <div ref={containerRef} style={{ position: 'absolute', inset: 0 }} />
+      <div className="relative flex w-full max-w-[480px] flex-1 flex-col overflow-hidden">
+      {/* Map region — a fixed share of the screen while playing/paused so a
+          tall photo card can never cover a pin; expands to fill the whole
+          screen once the story ends (map.resize() runs in end()/watchAgain()
+          to match). */}
+      <div className="relative w-full flex-shrink-0 overflow-hidden" style={{ height: hasEnded ? '100%' : '56%' }}>
+        <div ref={containerRef} style={{ position: 'absolute', inset: 0 }} />
 
-      {!hasEnded && (
-        <>
-          {!isPlaying && (
-            <div
-              className="absolute inset-0"
-              style={{
-                background: 'linear-gradient(to bottom, rgba(16,26,30,.55), rgba(16,26,30,.2) 45%, rgba(16,26,30,.85))',
-              }}
-              onClick={resume}
-            />
-          )}
-
-          <div className="absolute inset-x-0 top-0 flex items-center gap-3 px-4 pt-[max(14px,env(safe-area-inset-top))]">
-            <button onClick={onClose} className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-white/14 text-white">
-              ✕
-            </button>
-            {isPlaying ? (
-              <div className="flex flex-1 gap-1">
-                {stops.map((s, i) => (
-                  <div key={s.id} className="h-[3px] flex-1 overflow-hidden rounded-full bg-white/28">
-                    <div
-                      className="h-full rounded-full"
-                      style={{
-                        width: i < currentIndex ? '100%' : i === currentIndex ? `${progress * 100}%` : '0%',
-                        background: '#FFFFFF',
-                      }}
-                    />
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="flex-1 text-center text-[11px] font-bold uppercase tracking-[.16em] text-white/70">Paused</div>
+        {!hasEnded && (
+          <>
+            {!isPlaying && (
+              <div
+                className="absolute inset-0"
+                style={{
+                  background: 'linear-gradient(to bottom, rgba(16,26,30,.55), rgba(16,26,30,.2) 45%, rgba(16,26,30,.85))',
+                }}
+                onClick={resume}
+              />
             )}
-            {isPlaying ? (
-              <button onClick={pause} className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-white/14 text-white">
-                ❙❙
-              </button>
-            ) : (
-              <button onClick={toggleFullscreen} className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-white/14 text-white">
-                {isFullscreen ? '⤡' : '⤢'}
-              </button>
-            )}
-          </div>
 
-          {isPlaying && (
-            <div className="absolute left-5 top-[106px] text-white">
-              <div className="text-[11px] uppercase tracking-[.16em] text-white/60">
-                Stop {currentIndex + 1}{dateLabel ? ` · ${dateLabel}` : ''}
-              </div>
-              <div className="mt-1 font-story-serif text-[30px] leading-[1.05]">{place.town}</div>
+            <div className="absolute inset-x-0 top-0 flex items-center gap-3 px-4 pt-[max(14px,env(safe-area-inset-top))]">
+              <button onClick={onClose} className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-white/14 text-white">
+                ✕
+              </button>
+              {isPlaying ? (
+                <div className="flex flex-1 gap-1">
+                  {stops.map((s, i) => (
+                    <div key={s.id} className="h-[3px] flex-1 overflow-hidden rounded-full bg-white/28">
+                      <div
+                        className="h-full rounded-full"
+                        style={{
+                          width: i < currentIndex ? '100%' : i === currentIndex ? `${progress * 100}%` : '0%',
+                          background: '#FFFFFF',
+                        }}
+                      />
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex-1 text-center text-[11px] font-bold uppercase tracking-[.16em] text-white/70">Paused</div>
+              )}
+              {isPlaying ? (
+                <button onClick={pause} className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-white/14 text-white">
+                  ❙❙
+                </button>
+              ) : (
+                <button onClick={toggleFullscreen} className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-white/14 text-white">
+                  {isFullscreen ? '⤡' : '⤢'}
+                </button>
+              )}
             </div>
-          )}
 
+            {isPlaying && (
+              <div className="absolute left-5 top-[106px] text-white">
+                <div className="text-[11px] uppercase tracking-[.16em] text-white/60">
+                  Stop {currentIndex + 1}{dateLabel ? ` · ${dateLabel}` : ''}
+                </div>
+                <div className="mt-1 font-story-serif text-[30px] leading-[1.05]">{place.town}</div>
+              </div>
+            )}
+
+            {!isPlaying && (
+              <button
+                onClick={resume}
+                className="absolute left-1/2 top-1/2 flex h-[64px] w-[64px] -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-story-coral text-[20px] text-white shadow-[0_12px_30px_-10px_rgba(0,0,0,.5)]"
+              >
+                ▶
+              </button>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* Card region — sits below the map, never overlaps it. */}
+      {!hasEnded && (
+        <div className="relative min-h-0 flex-1 overflow-y-auto bg-story-cream">
           {isPlaying && currentStoryPhoto && (
-            <div key={stop.id} className={`absolute inset-x-4 bottom-[26px] rounded-[22px] bg-story-cream p-3.5 ${cardEntering ? 'story-card-enter' : ''}`}>
-              <div className="relative mb-3 h-[178px] w-full overflow-hidden rounded-2xl bg-story-photo">
+            <div key={stop.id} className={`p-3.5 ${cardEntering ? 'story-card-enter' : ''}`}>
+              <div className="relative mb-3 h-[140px] w-full overflow-hidden rounded-2xl bg-story-photo">
                 <PhotoThumb storagePath={currentStoryPhoto.photo.storage_path} className="h-full w-full object-cover" />
                 {photoStickers.map((s, i) => (
                   <div
@@ -506,10 +546,10 @@ export function StoryPlayer({ story, onClose, onEdit, onShare, readOnly = false 
                 ))}
               </div>
               {currentStoryPhoto.prompt_id && (
-                <span className="font-story-serif text-[20px] leading-[1.15] text-story-muted">{currentStoryPhoto.prompt_id}</span>
+                <span className="font-story-serif text-[19px] leading-[1.15] text-story-muted">{currentStoryPhoto.prompt_id}</span>
               )}
               {currentStoryPhoto.answer && (
-                <p className="mt-1 text-[17px] leading-[1.4] text-story-ink">&ldquo;{currentStoryPhoto.answer}&rdquo;</p>
+                <p className="mt-1 text-[16px] leading-[1.4] text-story-ink">&ldquo;{currentStoryPhoto.answer}&rdquo;</p>
               )}
               {stop.fact_text && (
                 <div className="mt-3 flex items-start gap-2 border-t border-story-hairline pt-3">
@@ -523,30 +563,31 @@ export function StoryPlayer({ story, onClose, onEdit, onShare, readOnly = false 
           )}
 
           {!isPlaying && (
-            <div className="absolute inset-x-0 top-1/2 flex -translate-y-1/2 flex-col items-center gap-4">
-              <button onClick={resume} className="flex h-[72px] w-[72px] items-center justify-center rounded-full bg-story-coral text-[22px] text-white shadow-[0_12px_30px_-10px_rgba(0,0,0,.5)]">
-                ▶
-              </button>
-              {notePhoto && (
-                <div className="h-[180px] w-[150px] overflow-hidden rounded-[10px] bg-story-paper p-1.5 shadow-[0_14px_30px_-14px_rgba(0,0,0,.55)]" style={{ transform: 'rotate(-2deg)' }}>
-                  <PhotoThumb storagePath={notePhoto.storage_path} className="h-full w-full rounded-[6px] object-cover" />
+            <div className="flex flex-col gap-3 p-3.5">
+              <div className="flex items-center justify-center gap-4">
+                {notePhoto && (
+                  <div className="h-[92px] w-[78px] flex-shrink-0 overflow-hidden rounded-[10px] bg-story-paper p-1 shadow-[0_10px_20px_-12px_rgba(0,0,0,.4)]" style={{ transform: 'rotate(-2deg)' }}>
+                    <PhotoThumb storagePath={notePhoto.storage_path} className="h-full w-full rounded-[6px] object-cover" />
+                  </div>
+                )}
+                <div className="flex flex-col gap-0.5">
+                  <span className="font-story-serif text-[20px] leading-[1.1] text-story-ink">{place.town}</span>
+                  {currentStoryPhoto?.answer && (
+                    <p className="line-clamp-2 text-[13px] leading-[1.4] text-story-muted">&ldquo;{currentStoryPhoto.answer}&rdquo;</p>
+                  )}
                 </div>
-              )}
-            </div>
-          )}
+              </div>
 
-          {!isPlaying && (
-            <div className="absolute inset-x-0 bottom-[26px] flex flex-col gap-3">
-              <div className="flex items-center justify-center gap-3 text-[14px] font-medium text-white">
-                <button onClick={() => jumpToIndex(currentIndex - 1)} disabled={currentIndex === 0} className="text-[17px] text-white/80 disabled:opacity-30">
+              <div className="flex items-center justify-center gap-3 text-[13px] font-medium text-story-ink">
+                <button onClick={() => jumpToIndex(currentIndex - 1)} disabled={currentIndex === 0} className="text-[16px] text-story-faint disabled:opacity-30">
                   ‹
                 </button>
                 <span>Stop {currentIndex + 1} of {stops.length} · {place.town}</span>
-                <button onClick={() => jumpToIndex(currentIndex + 1)} disabled={currentIndex === stops.length - 1} className="text-[17px] text-white/80 disabled:opacity-30">
+                <button onClick={() => jumpToIndex(currentIndex + 1)} disabled={currentIndex === stops.length - 1} className="text-[16px] text-story-faint disabled:opacity-30">
                   ›
                 </button>
               </div>
-              <div className="flex gap-2 overflow-x-auto px-4 pb-1">
+              <div className="flex gap-2 overflow-x-auto pb-1">
                 {stops.map((s, i) => (
                   <button
                     key={s.id}
@@ -559,7 +600,10 @@ export function StoryPlayer({ story, onClose, onEdit, onShare, readOnly = false 
                     ) : (
                       <div className="h-full w-full bg-story-photo" />
                     )}
-                    <div className="mt-[-16px] truncate px-1 text-[10px] leading-[1.3]" style={{ color: i === currentIndex ? '#FFFFFF' : 'rgba(255,255,255,.55)' }}>
+                    <div
+                      className="mt-[-18px] truncate bg-black/40 px-1 text-[10px] leading-[1.4] text-white"
+                      style={{ opacity: i === currentIndex ? 1 : 0.7 }}
+                    >
                       {s.visit.place.town}
                     </div>
                   </button>
@@ -567,7 +611,7 @@ export function StoryPlayer({ story, onClose, onEdit, onShare, readOnly = false 
               </div>
             </div>
           )}
-        </>
+        </div>
       )}
 
       {hasEnded && (
