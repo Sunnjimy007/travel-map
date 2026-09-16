@@ -72,9 +72,35 @@ export function StopEditor({
     setAnswerDraft(activeStoryPhoto?.answer ?? '')
   }, [activeStoryPhoto?.id])
 
+  // Autosaves the answer/prompt ~600ms after typing stops — "Next photo"
+  // also saves immediately, but that button isn't the only way to leave a
+  // photo (tapping a different filmstrip thumbnail, closing the editor,
+  // jumping stops via the progress bar all skip it), and without this the
+  // draft was silently lost whenever someone navigated any other way.
+  useEffect(() => {
+    if (!activeStoryPhoto) return
+    const trimmed = answerDraft.trim()
+    const unchanged = trimmed === (activeStoryPhoto.answer ?? '').trim() && activePrompt === activeStoryPhoto.prompt_id
+    if (unchanged || !trimmed) return
+    const photoId = activeStoryPhoto.id
+    const timer = setTimeout(() => {
+      onUpdateStopPhotoAnswer(photoId, activePrompt, trimmed)
+    }, 600)
+    return () => clearTimeout(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [answerDraft, promptIndex])
+
   if (!stop) return null
   const { visit } = stop
   const place = visit.place
+
+  function flushAnswer() {
+    if (!activeStoryPhoto) return
+    const trimmed = answerDraft.trim()
+    const unchanged = trimmed === (activeStoryPhoto.answer ?? '').trim() && activePrompt === activeStoryPhoto.prompt_id
+    if (unchanged || !trimmed) return
+    onUpdateStopPhotoAnswer(activeStoryPhoto.id, activePrompt, trimmed)
+  }
 
   async function saveAnswerAndAdvance(skip: boolean) {
     if (!activeStoryPhoto) return
@@ -165,7 +191,13 @@ export function StopEditor({
     <div className="flex w-full max-w-[480px] flex-col bg-story-cream">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-story-hairline px-5 py-3">
-        <button onClick={onClose} className="text-[15px] font-medium text-story-muted">
+        <button
+          onClick={() => {
+            flushAnswer()
+            onClose()
+          }}
+          className="text-[15px] font-medium text-story-muted"
+        >
           &times;
         </button>
         <div className="flex flex-col items-center gap-1">
@@ -174,7 +206,13 @@ export function StopEditor({
             Stop {stopIndex + 1} of {story.stops.length}
           </span>
         </div>
-        <button onClick={onClose} className="text-[14px] font-bold text-story-coral-text">
+        <button
+          onClick={() => {
+            flushAnswer()
+            onClose()
+          }}
+          className="text-[14px] font-bold text-story-coral-text"
+        >
           Done
         </button>
       </div>
@@ -184,7 +222,10 @@ export function StopEditor({
         {story.stops.map((_, i) => (
           <button
             key={i}
-            onClick={() => onNavigateStop(i)}
+            onClick={() => {
+              flushAnswer()
+              onNavigateStop(i)
+            }}
             className={`h-[3px] flex-1 rounded-full ${
               i < stopIndex ? 'bg-story-teal' : i === stopIndex ? 'bg-story-coral' : 'bg-story-divider'
             }`}
@@ -226,7 +267,10 @@ export function StopEditor({
                 return (
                   <button
                     key={sp.id}
-                    onClick={() => setActivePhotoIndex(i)}
+                    onClick={() => {
+                      flushAnswer()
+                      setActivePhotoIndex(i)
+                    }}
                     className={`relative h-[54px] w-[54px] flex-shrink-0 overflow-hidden rounded-[10px] bg-story-photo-alt ${
                       active ? 'border-2 border-story-coral' : answered ? '' : 'border border-dashed border-story-dashed opacity-55'
                     }`}
@@ -434,14 +478,20 @@ export function StopEditor({
         <div className="flex gap-2.5">
           {stopIndex > 0 && (
             <button
-              onClick={() => onNavigateStop(stopIndex - 1)}
+              onClick={() => {
+                flushAnswer()
+                onNavigateStop(stopIndex - 1)
+              }}
               className="w-[52px] flex-shrink-0 rounded-[16px] border border-story-divider text-[16px] text-story-muted"
             >
               ‹
             </button>
           )}
           <button
-            onClick={() => (nextStop ? onNavigateStop(stopIndex + 1) : onClose())}
+            onClick={() => {
+              flushAnswer()
+              nextStop ? onNavigateStop(stopIndex + 1) : onClose()
+            }}
             className="flex flex-1 items-center rounded-[16px] bg-story-coral px-5 py-4 text-left text-[16px] font-bold text-white"
           >
             <span>{nextStop ? 'Next stop' : 'Finish'}</span>
