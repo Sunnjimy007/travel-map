@@ -46,6 +46,7 @@ export function StopEditor({
   const [draftTown, setDraftTown] = useState('')
   const [draftCountry, setDraftCountry] = useState('')
   const [answerDraft, setAnswerDraft] = useState('')
+  const [answerSaveError, setAnswerSaveError] = useState<string | null>(null)
 
   const [isEditingFact, setIsEditingFact] = useState(false)
   const [factDraft, setFactDraft] = useState('')
@@ -85,6 +86,8 @@ export function StopEditor({
     const photoId = activeStoryPhoto.id
     const timer = setTimeout(() => {
       onUpdateStopPhotoAnswer(photoId, activePrompt, trimmed)
+        .then(() => setAnswerSaveError(null))
+        .catch((e: any) => setAnswerSaveError(e.message ?? 'Failed to save the answer.'))
     }, 600)
     return () => clearTimeout(timer)
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -100,15 +103,23 @@ export function StopEditor({
     const unchanged = trimmed === (activeStoryPhoto.answer ?? '').trim() && activePrompt === activeStoryPhoto.prompt_id
     if (unchanged || !trimmed) return
     onUpdateStopPhotoAnswer(activeStoryPhoto.id, activePrompt, trimmed)
+      .then(() => setAnswerSaveError(null))
+      .catch((e: any) => setAnswerSaveError(e.message ?? 'Failed to save the answer.'))
   }
 
   async function saveAnswerAndAdvance(skip: boolean) {
     if (!activeStoryPhoto) return
     const trimmed = answerDraft.trim()
-    if (skip) {
-      await onUpdateStopPhotoAnswer(activeStoryPhoto.id, null, null)
-    } else if (trimmed) {
-      await onUpdateStopPhotoAnswer(activeStoryPhoto.id, activePrompt, trimmed)
+    try {
+      if (skip) {
+        await onUpdateStopPhotoAnswer(activeStoryPhoto.id, null, null)
+      } else if (trimmed) {
+        await onUpdateStopPhotoAnswer(activeStoryPhoto.id, activePrompt, trimmed)
+      }
+      setAnswerSaveError(null)
+    } catch (e: any) {
+      setAnswerSaveError(e.message ?? 'Failed to save the answer.')
+      return
     }
     setActivePhotoIndex((i) => Math.min(i + 1, stop.storyPhotos.length - 1))
   }
@@ -355,6 +366,7 @@ export function StopEditor({
                   placeholder="Type an answer…"
                   className="rounded-lg border border-story-hairline bg-story-cream px-2.5 py-2 text-[14px] text-story-body"
                 />
+                {answerSaveError && <p className="text-[12px] text-story-coral-text">{answerSaveError}</p>}
                 <div className="flex items-center gap-2 border-t border-story-hairline pt-2">
                   <button onClick={() => saveAnswerAndAdvance(true)} className="text-[13px] font-bold text-story-coral-text">
                     Skip

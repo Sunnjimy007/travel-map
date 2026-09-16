@@ -172,11 +172,18 @@ export function useStories(userId: string | null) {
   // from playback — the caller doesn't need a separate "remove" path.
   const updateStopPhotoAnswer = useCallback(
     async (stopPhotoId: string, promptId: string | null, answer: string | null) => {
-      const { error: err } = await supabase
+      // .update() doesn't error when RLS quietly matches zero rows — it just
+      // "succeeds" having changed nothing. .select() gets the row back so we
+      // can tell the two cases apart instead of failing silently.
+      const { data, error: err } = await supabase
         .from('story_stop_photos')
         .update({ prompt_id: promptId, answer })
         .eq('id', stopPhotoId)
+        .select()
       if (err) throw err
+      if (!data || data.length === 0) {
+        throw new Error('Could not save — this photo record was not found or is not editable.')
+      }
       await refresh()
     },
     [refresh]
