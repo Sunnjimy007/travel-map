@@ -6,9 +6,10 @@ interface PhotoThumbProps {
   className?: string
   onClick?: () => void
   alt?: string
+  onDimensions?: (dims: { width: number; height: number }) => void
 }
 
-export function PhotoThumb({ storagePath, className, onClick, alt }: PhotoThumbProps) {
+export function PhotoThumb({ storagePath, className, onClick, alt, onDimensions }: PhotoThumbProps) {
   const [url, setUrl] = useState<string | null>(null)
 
   useEffect(() => {
@@ -32,6 +33,10 @@ export function PhotoThumb({ storagePath, className, onClick, alt }: PhotoThumbP
       className={className}
       onClick={onClick}
       loading="lazy"
+      onLoad={(e) => {
+        const img = e.currentTarget
+        onDimensions?.({ width: img.naturalWidth, height: img.naturalHeight })
+      }}
     />
   )
 }

@@ -111,6 +111,7 @@ export function StoryPlayer({ story, onClose, onEdit, onShare, readOnly = false 
   const [hasEnded, setHasEnded] = useState(false)
   const [progress, setProgress] = useState(0)
   const [cardEntering, setCardEntering] = useState(true)
+  const [portraitPhotoIds, setPortraitPhotoIds] = useState<Set<string>>(new Set())
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [sharing, setSharing] = useState(false)
   const [shareUrl, setShareUrl] = useState<string | null>(
@@ -537,37 +538,57 @@ export function StoryPlayer({ story, onClose, onEdit, onShare, readOnly = false 
 
       {/* Card region — sits below the map, never overlaps it. */}
       {!hasEnded && (
-        <div className="relative min-h-0 flex-1 overflow-y-auto bg-story-cream">
-          {isPlaying && currentStoryPhoto && (
-            <div key={stop.id} className={`p-3.5 ${cardEntering ? 'story-card-enter' : ''}`}>
-              <div className="relative mb-3 h-[220px] w-full overflow-hidden rounded-2xl bg-story-photo">
-                <PhotoThumb storagePath={currentStoryPhoto.photo.storage_path} className="h-full w-full object-contain" />
-                {photoStickers.map((s, i) => (
+        <div className="relative flex min-h-0 flex-1 flex-col overflow-y-auto bg-story-cream">
+          {isPlaying && currentStoryPhoto && (() => {
+            const isPortrait = portraitPhotoIds.has(currentStoryPhoto.id)
+            return (
+              <div key={stop.id} className={`flex min-h-0 flex-1 flex-col p-3.5 ${cardEntering ? 'story-card-enter' : ''}`}>
+                <div className={isPortrait ? 'flex min-h-0 flex-1 gap-3' : 'flex min-h-0 flex-1 flex-col'}>
                   <div
-                    key={i}
-                    className="absolute text-[24px] leading-none"
-                    style={{ left: `${s.x * 100}%`, top: `${s.y * 100}%`, transform: `translate(-50%, -50%) rotate(${s.rot}deg) scale(${s.scale})` }}
+                    className={`relative flex-shrink-0 overflow-hidden rounded-2xl bg-story-photo ${
+                      isPortrait ? 'w-[44%]' : 'mb-3 h-[220px] w-full'
+                    }`}
                   >
-                    {s.emoji}
+                    <PhotoThumb
+                      storagePath={currentStoryPhoto.photo.storage_path}
+                      className="h-full w-full object-contain"
+                      onDimensions={({ width, height }) => {
+                        if (height <= width) return
+                        setPortraitPhotoIds((prev) =>
+                          prev.has(currentStoryPhoto.id) ? prev : new Set(prev).add(currentStoryPhoto.id)
+                        )
+                      }}
+                    />
+                    {photoStickers.map((s, i) => (
+                      <div
+                        key={i}
+                        className="absolute text-[24px] leading-none"
+                        style={{ left: `${s.x * 100}%`, top: `${s.y * 100}%`, transform: `translate(-50%, -50%) rotate(${s.rot}deg) scale(${s.scale})` }}
+                      >
+                        {s.emoji}
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-              {currentStoryPhoto.prompt_id && (
-                <span className="font-story-serif text-[19px] leading-[1.15] text-story-muted">{currentStoryPhoto.prompt_id}</span>
-              )}
-              {currentStoryPhoto.answer && (
-                <p className="mt-1 text-[16px] leading-[1.4] text-story-ink">&ldquo;{currentStoryPhoto.answer}&rdquo;</p>
-              )}
-              {stop.fact_text && (
-                <div className="mt-3 flex items-start gap-2 border-t border-story-hairline pt-3">
-                  <span className="flex-shrink-0 rounded-[5px] bg-story-teal-tint px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-[.12em] text-story-teal-deep">
-                    Fact
-                  </span>
-                  <p className="text-[13px] leading-[1.5] text-story-body">{stop.fact_text}</p>
+                  <div className="min-h-0 flex-1 overflow-y-auto">
+                    {currentStoryPhoto.prompt_id && (
+                      <span className="font-story-serif text-[19px] leading-[1.15] text-story-muted">{currentStoryPhoto.prompt_id}</span>
+                    )}
+                    {currentStoryPhoto.answer && (
+                      <p className="mt-1 text-[16px] leading-[1.4] text-story-ink">&ldquo;{currentStoryPhoto.answer}&rdquo;</p>
+                    )}
+                    {stop.fact_text && (
+                      <div className="mt-3 flex items-start gap-2 border-t border-story-hairline pt-3">
+                        <span className="flex-shrink-0 rounded-[5px] bg-story-teal-tint px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-[.12em] text-story-teal-deep">
+                          Fact
+                        </span>
+                        <p className="text-[13px] leading-[1.5] text-story-body">{stop.fact_text}</p>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              )}
-            </div>
-          )}
+              </div>
+            )
+          })()}
 
           {!isPlaying && (
             <div className="flex flex-col gap-3 p-3.5">
