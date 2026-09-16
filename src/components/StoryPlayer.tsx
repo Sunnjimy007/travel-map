@@ -540,8 +540,8 @@ export function StoryPlayer({ story, onClose, onEdit, onShare, readOnly = false 
         <div className="relative min-h-0 flex-1 overflow-y-auto bg-story-cream">
           {isPlaying && currentStoryPhoto && (
             <div key={stop.id} className={`p-3.5 ${cardEntering ? 'story-card-enter' : ''}`}>
-              <div className="relative mb-3 h-[190px] w-full overflow-hidden rounded-2xl bg-story-photo">
-                <PhotoThumb storagePath={currentStoryPhoto.photo.storage_path} className="h-full w-full object-cover" />
+              <div className="relative mb-3 h-[220px] w-full overflow-hidden rounded-2xl bg-story-photo">
+                <PhotoThumb storagePath={currentStoryPhoto.photo.storage_path} className="h-full w-full object-contain" />
                 {photoStickers.map((s, i) => (
                   <div
                     key={i}

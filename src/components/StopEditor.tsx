@@ -243,10 +243,10 @@ export function StopEditor({
           <>
             {/* Hero */}
             {activeStoryPhoto && (
-              <div className="relative mb-2 flex-none overflow-hidden rounded-[14px] bg-story-photo" style={{ height: 200 }}>
+              <div className="relative mb-2 flex-none overflow-hidden rounded-[14px] bg-story-photo" style={{ height: 260 }}>
                 <PhotoThumb
                   storagePath={activeStoryPhoto.photo.storage_path}
-                  className="h-full w-full cursor-pointer object-cover"
+                  className="h-full w-full cursor-pointer object-contain"
                   onClick={() =>
                     setLightbox({ photos: stop.storyPhotos.map((sp) => sp.photo), index: activePhotoIndex })
                   }
