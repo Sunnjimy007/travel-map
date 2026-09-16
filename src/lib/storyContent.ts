@@ -8,9 +8,3 @@ export const GUIDED_PROMPTS = [
   'What surprised you?',
   'What would you tell a friend about this place?',
 ]
-
-export const STICKER_EMOJI = [
-  '😂', '🍜', '🌴', '🛺', '🦎', '⭐',
-  '🏝️', '🥥', '😱', '🚂', '☔', '🐒',
-  '🎨', '🍦', '🐠', '🛶', '😴', '❤️',
-]

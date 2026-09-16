@@ -17,9 +17,18 @@ const STORY_WITH_STOPS_SELECT = `
       *,
       place:places(*),
       photos:visit_photos(*)
+    ),
+    storyPhotos:story_stop_photos(
+      *,
+      photo:visit_photos(*)
     )
   )
 `
+
+export interface StopGroup {
+  visitId: string
+  photoIds: string[]
+}
 
 export function useStories(userId: string | null) {
   const [stories, setStories] = useState<StoryWithStops[]>([])
@@ -43,13 +52,13 @@ export function useStories(userId: string | null) {
       if (err) throw err
 
       const result = (data ?? []) as unknown as StoryWithStops[]
-      // Photo order within a stop is sorted client-side rather than via a
-      // deeply-nested PostgREST foreign-table order clause (story_stops ->
-      // visits -> visit_photos), whose dot-path syntax is easy to get wrong
-      // silently — a plain JS sort here is simpler and just as correct.
+      // Photo order is sorted client-side rather than via nested foreign-table
+      // order clauses (fragile once you're three joins deep) — a plain sort
+      // here is simpler and just as correct.
       for (const story of result) {
         for (const stop of story.stops) {
           stop.visit.photos.sort((a, b) => a.sort_order - b.sort_order)
+          stop.storyPhotos.sort((a, b) => a.sort_order - b.sort_order)
         }
       }
       setStories(result)
@@ -64,17 +73,25 @@ export function useStories(userId: string | null) {
     refresh()
   }, [refresh])
 
+  // A photo counts as "used" once it's in any story, regardless of whether
+  // it ended up answered — it's already been through the picker.
+  const usedPhotoIds = new Set(
+    stories.flatMap((s) => s.stops.flatMap((stop) => stop.storyPhotos.map((sp) => sp.visit_photo_id)))
+  )
+  // Whole visits already turned into a stop — used for the "suggested from
+  // your map" clusters, which offer entire untouched holidays, not partial
+  // top-ups of a holiday you've already started.
   const usedVisitIds = new Set(stories.flatMap((s) => s.stops.map((stop) => stop.visit_id)))
 
   const createStory = useCallback(
-    async (title: string, visitIds: string[]): Promise<Story> => {
+    async (title: string, groups: StopGroup[]): Promise<Story> => {
       if (!userId) throw new Error('Not signed in')
-      if (visitIds.length === 0) throw new Error('A story needs at least one stop')
+      if (groups.length === 0) throw new Error('Pick at least one photo for the story')
 
       const { data: visitsData, error: visitsErr } = await supabase
         .from('visits')
         .select('id, visited_date, end_date')
-        .in('id', visitIds)
+        .in('id', groups.map((g) => g.visitId))
       if (visitsErr) throw visitsErr
       const dates = (visitsData ?? []).map((v) => v.visited_date).sort()
 
@@ -90,21 +107,25 @@ export function useStories(userId: string | null) {
         .single()
       if (storyErr) throw storyErr
 
-      // Stops follow the same chronological order as the visits themselves.
-      const orderedIds = [...visitIds].sort((a, b) => {
-        const va = visitsData!.find((v) => v.id === a)!
-        const vb = visitsData!.find((v) => v.id === b)!
-        return va.visited_date < vb.visited_date ? -1 : 1
-      })
+      // Groups already arrive in chronological order from the photo picker
+      // (grouped by day + place); stops follow that same order.
+      const { data: stopsData, error: stopsErr } = await supabase
+        .from('story_stops')
+        .insert(groups.map((g, i) => ({ story_id: story.id, visit_id: g.visitId, sort_order: i })))
+        .select()
+      if (stopsErr) throw stopsErr
 
-      const { error: stopsErr } = await supabase.from('story_stops').insert(
-        orderedIds.map((visitId, i) => ({
-          story_id: story.id,
-          visit_id: visitId,
-          sort_order: i,
+      const stopPhotoRows = groups.flatMap((g, i) =>
+        g.photoIds.map((photoId, j) => ({
+          story_stop_id: stopsData![i].id,
+          visit_photo_id: photoId,
+          sort_order: j,
         }))
       )
-      if (stopsErr) throw stopsErr
+      if (stopPhotoRows.length > 0) {
+        const { error: spErr } = await supabase.from('story_stop_photos').insert(stopPhotoRows)
+        if (spErr) throw spErr
+      }
 
       await refresh()
       return story as Story
@@ -127,7 +148,6 @@ export function useStories(userId: string | null) {
       updates: Partial<{
         fact_text: string
         fact_source: 'generated' | 'edited'
-        story_note: string
         stickers: Sticker[]
         note_photo_id: string | null
       }>
@@ -142,6 +162,20 @@ export function useStories(userId: string | null) {
   const removeStop = useCallback(
     async (stopId: string) => {
       const { error: err } = await supabase.from('story_stops').delete().eq('id', stopId)
+      if (err) throw err
+      await refresh()
+    },
+    [refresh]
+  )
+
+  // Answers are per photo: null clears/skips it, which also excludes it
+  // from playback — the caller doesn't need a separate "remove" path.
+  const updateStopPhotoAnswer = useCallback(
+    async (stopPhotoId: string, promptId: string | null, answer: string | null) => {
+      const { error: err } = await supabase
+        .from('story_stop_photos')
+        .update({ prompt_id: promptId, answer })
+        .eq('id', stopPhotoId)
       if (err) throw err
       await refresh()
     },
@@ -173,11 +207,13 @@ export function useStories(userId: string | null) {
     loading,
     error,
     refresh,
+    usedPhotoIds,
     usedVisitIds,
     createStory,
     deleteStory,
     updateStop,
     removeStop,
+    updateStopPhotoAnswer,
     shareStory,
     unshareStory,
   }

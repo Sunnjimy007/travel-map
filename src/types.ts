@@ -36,11 +36,12 @@ export interface PlaceWithVisits extends Place {
 
 export interface Sticker {
   emoji: string
-  x: number // fraction of the photo box, 0-1
+  target: 'photo' | 'fact'
+  photoId: string | null // the story_stop_photos.id it sits on; null when target is 'fact'
+  x: number // fraction of the target box, 0-1
   y: number
   rot: number
   scale: number
-  photoId: string
 }
 
 export interface Story {
@@ -61,14 +62,28 @@ export interface StoryStop {
   sort_order: number
   fact_text: string | null
   fact_source: 'generated' | 'edited' | null
-  story_note: string | null
   stickers: Sticker[] | null
   note_photo_id: string | null
   created_at: string
 }
 
+// A photo selected into a story, with its own guided-prompt answer. A photo
+// with answer === null is unanswered and excluded from playback entirely —
+// that's the editorial rule the whole feature rests on.
+export interface StoryStopPhoto {
+  id: string
+  story_stop_id: string
+  visit_photo_id: string
+  sort_order: number
+  prompt_id: string | null
+  answer: string | null
+  created_at: string
+  photo: VisitPhoto
+}
+
 export interface StoryStopWithVisit extends StoryStop {
   visit: VisitWithPhotos & { place: Place }
+  storyPhotos: StoryStopPhoto[]
 }
 
 export interface StoryWithStops extends Story {

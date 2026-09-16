@@ -13,6 +13,10 @@ const STORY_WITH_STOPS_SELECT = `
       *,
       place:places(*),
       photos:visit_photos(*)
+    ),
+    storyPhotos:story_stop_photos(
+      *,
+      photo:visit_photos(*)
     )
   )
 `
@@ -53,7 +57,10 @@ export function SharedStoryView({ token }: SharedStoryViewProps) {
         return
       }
       const result = data as unknown as StoryWithStops
-      for (const stop of result.stops) stop.visit.photos.sort((a, b) => a.sort_order - b.sort_order)
+      for (const stop of result.stops) {
+        stop.visit.photos.sort((a, b) => a.sort_order - b.sort_order)
+        stop.storyPhotos.sort((a, b) => a.sort_order - b.sort_order)
+      }
       setStory(result)
       setLoading(false)
     }
@@ -84,8 +91,8 @@ export function SharedStoryView({ token }: SharedStoryViewProps) {
     return <StoryPlayer story={story} onClose={() => setPlaying(false)} readOnly />
   }
 
-  const cover = story.stops.find((s) => s.visit.photos.length > 0)?.visit.photos[0]
-  const totalPhotos = story.stops.reduce((sum, s) => sum + s.visit.photos.length, 0)
+  const cover = story.stops.find((s) => s.storyPhotos.length > 0)?.storyPhotos[0]?.photo
+  const totalPhotos = story.stops.reduce((sum, s) => sum + s.storyPhotos.length, 0)
   const minutes = Math.max(1, Math.round((story.stops.length * 6.5) / 1))
 
   return (
@@ -130,8 +137,9 @@ export function SharedStoryView({ token }: SharedStoryViewProps) {
         <div className="mt-2 flex flex-col gap-0">
           <div className="mb-1 text-[11px] font-bold uppercase tracking-[.14em] text-story-faint">The stops</div>
           {story.stops.map((stop, i) => {
-            const thumb = stop.visit.photos[0]
+            const thumb = stop.storyPhotos[0]?.photo
             const sticker = stop.stickers?.[0]
+            const hasNote = stop.storyPhotos.some((sp) => sp.answer)
             return (
               <div
                 key={stop.id}
@@ -148,8 +156,8 @@ export function SharedStoryView({ token }: SharedStoryViewProps) {
                   <span className="text-[12px] text-story-faint">
                     {stop.visit.visited_date ? format(new Date(stop.visit.visited_date), 'd MMM') : ''}
                     {' · '}
-                    {stop.visit.photos.length} photo{stop.visit.photos.length !== 1 ? 's' : ''}
-                    {stop.story_note ? ' · note' : ''}
+                    {stop.storyPhotos.length} photo{stop.storyPhotos.length !== 1 ? 's' : ''}
+                    {hasNote ? ' · note' : ''}
                   </span>
                 </div>
                 {sticker && <span className="flex-shrink-0 text-[18px]">{sticker.emoji}</span>}

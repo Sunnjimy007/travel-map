@@ -30,9 +30,6 @@ function applyPalette(map: maplibregl.Map) {
   }
 }
 
-// A simple spherical-slerp great-circle interpolation between two points —
-// gives the route a gentle curve instead of a straight Mercator line, without
-// pulling in a geodesy library for one shape.
 function greatCircle(a: [number, number], b: [number, number], steps = 24): [number, number][] {
   const toRad = (d: number) => (d * Math.PI) / 180
   const toDeg = (r: number) => (r * 180) / Math.PI
@@ -57,26 +54,35 @@ function greatCircle(a: [number, number], b: [number, number], steps = 24): [num
   return points
 }
 
-function routeLine(stops: StoryStopWithVisit[]): GeoJSON.Feature<GeoJSON.LineString> {
-  const coords: [number, number][] = []
-  for (let i = 0; i < stops.length - 1; i++) {
-    const a: [number, number] = [stops[i].visit.place.longitude, stops[i].visit.place.latitude]
-    const b: [number, number] = [stops[i + 1].visit.place.longitude, stops[i + 1].visit.place.latitude]
-    const seg = greatCircle(a, b)
-    coords.push(...(i === 0 ? seg : seg.slice(1)))
+function coordsOf(stops: StoryStopWithVisit[]): [number, number][] {
+  return stops.map((s) => [s.visit.place.longitude, s.visit.place.latitude])
+}
+
+function segmentLine(coords: [number, number][], from: number, to: number): GeoJSON.Feature<GeoJSON.LineString> {
+  const line = from >= 0 && to < coords.length && from !== to ? greatCircle(coords[from], coords[to]) : []
+  return { type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: line } }
+}
+
+function fullRouteLine(coords: [number, number][]): GeoJSON.Feature<GeoJSON.LineString> {
+  const points: [number, number][] = []
+  for (let i = 0; i < coords.length - 1; i++) {
+    const seg = greatCircle(coords[i], coords[i + 1])
+    points.push(...(i === 0 ? seg : seg.slice(1)))
   }
-  return { type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: coords } }
+  return { type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: points } }
 }
 
 const FLY_MS = 1600
 const HOLD_MS = 5000
-const LONG_NOTE_MS = 1500
-const LONG_NOTE_CHARS = 140
+
+function answeredPhotos(stop: StoryStopWithVisit) {
+  const answered = stop.storyPhotos.filter((sp) => sp.answer)
+  return answered.length > 0 ? answered : stop.storyPhotos.slice(0, 1)
+}
 
 function totalDuration(stop: StoryStopWithVisit, reducedMotion: boolean): number {
-  const noteLen = (stop.story_note ?? '').length
-  const hold = HOLD_MS + (noteLen > LONG_NOTE_CHARS ? LONG_NOTE_MS : 0)
-  return (reducedMotion ? 0 : FLY_MS) + hold
+  const count = Math.max(1, answeredPhotos(stop).length)
+  return (reducedMotion ? 0 : FLY_MS) + HOLD_MS * count
 }
 
 interface StoryPlayerProps {
@@ -89,6 +95,7 @@ interface StoryPlayerProps {
 
 export function StoryPlayer({ story, onClose, onEdit, onShare, readOnly = false }: StoryPlayerProps) {
   const stops = story.stops
+  const coords = coordsOf(stops)
   const containerRef = useRef<HTMLDivElement>(null)
   const wrapperRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<maplibregl.Map | null>(null)
@@ -150,9 +157,25 @@ export function StoryPlayer({ story, onClose, onEdit, onShare, readOnly = false 
         ring.style.borderRadius = '50%'
         ring.style.animation = 'story-pulse-ring 2.2s ease-out infinite'
         el.appendChild(ring)
+      } else if (i === activeIndex + 1) {
+        dot.style.width = dot.style.height = '11px'
+        dot.style.background = '#FFFFFF'
+        dot.style.boxShadow = `0 0 0 3px ${CORAL}48`
+        const label = document.createElement('div')
+        label.textContent = 'NEXT'
+        label.style.position = 'absolute'
+        label.style.left = '100%'
+        label.style.top = '50%'
+        label.style.transform = 'translateY(-50%)'
+        label.style.marginLeft = '6px'
+        label.style.whiteSpace = 'nowrap'
+        label.style.font = '700 10px DM Sans, sans-serif'
+        label.style.letterSpacing = '.12em'
+        label.style.color = 'rgba(255,255,255,.6)'
+        el.appendChild(label)
       } else if (i < activeIndex) {
         dot.style.width = dot.style.height = '9px'
-        dot.style.background = 'rgba(255,255,255,.5)'
+        dot.style.background = 'rgba(255,255,255,.28)'
       } else {
         dot.style.width = dot.style.height = '9px'
         dot.style.background = 'rgba(255,255,255,.28)'
@@ -163,6 +186,13 @@ export function StoryPlayer({ story, onClose, onEdit, onShare, readOnly = false 
         .addTo(map)
       markersRef.current.push(marker)
     })
+  }
+
+  function syncRoute(activeIndex: number) {
+    const map = mapRef.current
+    const src = map?.getSource('story-route') as maplibregl.GeoJSONSource | undefined
+    if (!src) return
+    src.setData(segmentLine(coords, activeIndex, activeIndex + 1))
   }
 
   function flyToStop(index: number) {
@@ -200,6 +230,7 @@ export function StoryPlayer({ story, onClose, onEdit, onShare, readOnly = false 
     } else {
       jumpToStop(index)
     }
+    syncRoute(index)
     const remaining = resuming ? remainingRef.current : total
     stopStartRef.current = Date.now() - (total - remaining)
     clearTimers()
@@ -233,6 +264,7 @@ export function StoryPlayer({ story, onClose, onEdit, onShare, readOnly = false 
       startStop(clamped, false)
     } else {
       jumpToStop(clamped)
+      syncRoute(clamped)
       remainingRef.current = totalDuration(stops[clamped], reducedMotion)
       syncMarkers(clamped, false)
     }
@@ -269,6 +301,8 @@ export function StoryPlayer({ story, onClose, onEdit, onShare, readOnly = false 
     fitAll()
     syncMarkers(currentIndexRef.current, true)
     const map = mapRef.current
+    const src = map?.getSource('story-route') as maplibregl.GeoJSONSource | undefined
+    src?.setData(fullRouteLine(coords))
     if (map?.getLayer('story-route-line')) {
       map.setPaintProperty('story-route-line', 'line-dasharray', [1, 0])
       map.setPaintProperty('story-route-line', 'line-opacity', 0.5)
@@ -285,7 +319,7 @@ export function StoryPlayer({ story, onClose, onEdit, onShare, readOnly = false 
     const map = mapRef.current
     if (map?.getLayer('story-route-line')) {
       map.setPaintProperty('story-route-line', 'line-dasharray', [2, 2])
-      map.setPaintProperty('story-route-line', 'line-opacity', 0.6)
+      map.setPaintProperty('story-route-line', 'line-opacity', 0.75)
     }
     startStop(0, false)
   }
@@ -320,8 +354,6 @@ export function StoryPlayer({ story, onClose, onEdit, onShare, readOnly = false 
     }
   }
 
-  // Map lifecycle — created once; stop data is treated as a fixed snapshot
-  // for the duration of a play session.
   useEffect(() => {
     if (!containerRef.current || stops.length === 0) return
     const map = new maplibregl.Map({
@@ -340,36 +372,22 @@ export function StoryPlayer({ story, onClose, onEdit, onShare, readOnly = false 
     })
 
     map.on('load', () => {
-      // eslint-disable-next-line no-console
-      console.log('[StoryPlayer] map load fired, stops:', stops.length)
       try {
-        // The container's final CSS size (inside the phone-width column) can
-        // land a beat after the map's own construction — the ResizeObserver
-        // below usually catches it, but a WebGL canvas needs an explicit
-        // .resize() call to actually redraw at the corrected size, so force
-        // one now plus a couple of short-delay follow-ups as a safety net.
         map.resize()
         requestAnimationFrame(() => map.resize())
         window.setTimeout(() => map.resize(), 300)
         applyPalette(map)
         map.setProjection({ type: 'globe' })
         loadedRef.current = true
-        map.addSource('story-route', { type: 'geojson', data: routeLine(stops) })
+        map.addSource('story-route', { type: 'geojson', data: segmentLine(coords, 0, 1) })
         map.addLayer({
           id: 'story-route-line',
           type: 'line',
           source: 'story-route',
-          paint: {
-            'line-color': CORAL,
-            'line-width': 2,
-            'line-dasharray': [2, 2],
-            'line-opacity': 0.6,
-          },
+          paint: { 'line-color': CORAL, 'line-width': 2, 'line-dasharray': [2, 2], 'line-opacity': 0.75 },
         })
         syncMarkers(0, false)
         startStop(0, false)
-        // eslint-disable-next-line no-console
-        console.log('[StoryPlayer] load handler completed, markers:', markersRef.current.length)
       } catch (err) {
         // eslint-disable-next-line no-console
         console.error('[StoryPlayer] exception in load handler:', err)
@@ -394,48 +412,42 @@ export function StoryPlayer({ story, onClose, onEdit, onShare, readOnly = false 
   if (!stop) return null
 
   const place = stop.visit.place
+  const playable = answeredPhotos(stop)
+  const totalMs = totalDuration(stop, reducedMotion)
+  const elapsedMs = progress * totalMs
+  const photoIdx = Math.min(
+    playable.length - 1,
+    Math.max(0, Math.floor((elapsedMs - (reducedMotion ? 0 : FLY_MS)) / HOLD_MS))
+  )
+  const currentStoryPhoto = playable[photoIdx]
   const notePhoto = stop.note_photo_id ? stop.visit.photos.find((p) => p.id === stop.note_photo_id) : null
-  const primaryPhoto = stop.visit.photos[0]
   const dateLabel = stop.visit.visited_date ? format(new Date(stop.visit.visited_date), 'd MMM') : ''
-  const totalPhotos = stops.reduce((sum, s) => sum + s.visit.photos.length, 0)
+  const totalPhotos = stops.reduce((sum, s) => sum + s.storyPhotos.length, 0)
   const days =
     story.start_date && story.end_date
       ? Math.max(1, Math.round((+new Date(story.end_date) - +new Date(story.start_date)) / 86400000) + 1)
       : stops.length
+  const photoStickers = (stop.stickers ?? []).filter((s) => s.target === 'photo' && s.photoId === currentStoryPhoto?.id)
 
   return (
-    <div
-      ref={wrapperRef}
-      className="fixed inset-0 z-50 flex justify-center overflow-hidden bg-story-map-1 font-story-sans"
-    >
+    <div ref={wrapperRef} className="fixed inset-0 z-50 flex justify-center overflow-hidden bg-story-map-1 font-story-sans">
       <div className="relative w-full max-w-[480px] flex-1 overflow-hidden">
-      {/* maplibre-gl.css ships its own ".maplibregl-map { position: relative }"
-          rule, which has equal specificity to and can load after Tailwind's
-          ".absolute" utility, silently winning the cascade. An inline style
-          always wins over any stylesheet, so this is set directly rather
-          than via className — same fix MapView.tsx already relies on. */}
       <div ref={containerRef} style={{ position: 'absolute', inset: 0 }} />
 
       {!hasEnded && (
         <>
-          {/* Pause-state scrim */}
           {!isPlaying && (
             <div
               className="absolute inset-0"
               style={{
-                background:
-                  'linear-gradient(to bottom, rgba(16,26,30,.55), rgba(16,26,30,.2) 45%, rgba(16,26,30,.85))',
+                background: 'linear-gradient(to bottom, rgba(16,26,30,.55), rgba(16,26,30,.2) 45%, rgba(16,26,30,.85))',
               }}
               onClick={resume}
             />
           )}
 
-          {/* Top chrome */}
           <div className="absolute inset-x-0 top-0 flex items-center gap-3 px-4 pt-[max(14px,env(safe-area-inset-top))]">
-            <button
-              onClick={onClose}
-              className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-white/14 text-white"
-            >
+            <button onClick={onClose} className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-white/14 text-white">
               ✕
             </button>
             {isPlaying ? (
@@ -443,33 +455,24 @@ export function StoryPlayer({ story, onClose, onEdit, onShare, readOnly = false 
                 {stops.map((s, i) => (
                   <div key={s.id} className="h-[3px] flex-1 overflow-hidden rounded-full bg-white/28">
                     <div
-                      className="h-full rounded-full bg-white"
+                      className="h-full rounded-full"
                       style={{
-                        width:
-                          i < currentIndex ? '100%' : i === currentIndex ? `${progress * 100}%` : '0%',
-                        background: i === currentIndex ? CORAL : '#FFFFFF',
+                        width: i < currentIndex ? '100%' : i === currentIndex ? `${progress * 100}%` : '0%',
+                        background: '#FFFFFF',
                       }}
                     />
                   </div>
                 ))}
               </div>
             ) : (
-              <div className="flex-1 text-center text-[11px] font-bold uppercase tracking-[.16em] text-white/70">
-                Paused
-              </div>
+              <div className="flex-1 text-center text-[11px] font-bold uppercase tracking-[.16em] text-white/70">Paused</div>
             )}
             {isPlaying ? (
-              <button
-                onClick={pause}
-                className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-white/14 text-white"
-              >
+              <button onClick={pause} className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-white/14 text-white">
                 ❙❙
               </button>
             ) : (
-              <button
-                onClick={toggleFullscreen}
-                className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-white/14 text-white"
-              >
+              <button onClick={toggleFullscreen} className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-white/14 text-white">
                 {isFullscreen ? '⤡' : '⤢'}
               </button>
             )}
@@ -484,33 +487,25 @@ export function StoryPlayer({ story, onClose, onEdit, onShare, readOnly = false 
             </div>
           )}
 
-          {isPlaying && (
-            <div
-              key={stop.id}
-              className={`absolute inset-x-4 bottom-[26px] rounded-[22px] bg-story-cream p-3.5 ${cardEntering ? 'story-card-enter' : ''}`}
-            >
-              {primaryPhoto && (
-                <div className="relative mb-3 h-[210px] w-full overflow-hidden rounded-2xl bg-story-photo">
-                  <PhotoThumb storagePath={primaryPhoto.storage_path} className="h-full w-full object-cover" />
-                  {(stop.stickers ?? [])
-                    .filter((s) => s.photoId === primaryPhoto.id)
-                    .map((s, i) => (
-                      <div
-                        key={i}
-                        className="absolute text-[24px] leading-none"
-                        style={{
-                          left: `${s.x * 100}%`,
-                          top: `${s.y * 100}%`,
-                          transform: `translate(-50%, -50%) rotate(${s.rot}deg) scale(${s.scale})`,
-                        }}
-                      >
-                        {s.emoji}
-                      </div>
-                    ))}
-                </div>
+          {isPlaying && currentStoryPhoto && (
+            <div key={stop.id} className={`absolute inset-x-4 bottom-[26px] rounded-[22px] bg-story-cream p-3.5 ${cardEntering ? 'story-card-enter' : ''}`}>
+              <div className="relative mb-3 h-[178px] w-full overflow-hidden rounded-2xl bg-story-photo">
+                <PhotoThumb storagePath={currentStoryPhoto.photo.storage_path} className="h-full w-full object-cover" />
+                {photoStickers.map((s, i) => (
+                  <div
+                    key={i}
+                    className="absolute text-[24px] leading-none"
+                    style={{ left: `${s.x * 100}%`, top: `${s.y * 100}%`, transform: `translate(-50%, -50%) rotate(${s.rot}deg) scale(${s.scale})` }}
+                  >
+                    {s.emoji}
+                  </div>
+                ))}
+              </div>
+              {currentStoryPhoto.prompt_id && (
+                <span className="font-story-serif text-[20px] leading-[1.15] text-story-muted">{currentStoryPhoto.prompt_id}</span>
               )}
-              {stop.story_note && (
-                <p className="text-[17px] leading-[1.45] text-story-ink">&ldquo;{stop.story_note}&rdquo;</p>
+              {currentStoryPhoto.answer && (
+                <p className="mt-1 text-[17px] leading-[1.4] text-story-ink">&ldquo;{currentStoryPhoto.answer}&rdquo;</p>
               )}
               {stop.fact_text && (
                 <div className="mt-3 flex items-start gap-2 border-t border-story-hairline pt-3">
@@ -525,17 +520,11 @@ export function StoryPlayer({ story, onClose, onEdit, onShare, readOnly = false 
 
           {!isPlaying && (
             <div className="absolute inset-x-0 top-1/2 flex -translate-y-1/2 flex-col items-center gap-4">
-              <button
-                onClick={resume}
-                className="flex h-[72px] w-[72px] items-center justify-center rounded-full bg-story-coral text-[22px] text-white shadow-[0_12px_30px_-10px_rgba(0,0,0,.5)]"
-              >
+              <button onClick={resume} className="flex h-[72px] w-[72px] items-center justify-center rounded-full bg-story-coral text-[22px] text-white shadow-[0_12px_30px_-10px_rgba(0,0,0,.5)]">
                 ▶
               </button>
               {notePhoto && (
-                <div
-                  className="h-[180px] w-[150px] overflow-hidden rounded-[10px] bg-story-paper p-1.5 shadow-[0_14px_30px_-14px_rgba(0,0,0,.55)]"
-                  style={{ transform: 'rotate(-2deg)' }}
-                >
+                <div className="h-[180px] w-[150px] overflow-hidden rounded-[10px] bg-story-paper p-1.5 shadow-[0_14px_30px_-14px_rgba(0,0,0,.55)]" style={{ transform: 'rotate(-2deg)' }}>
                   <PhotoThumb storagePath={notePhoto.storage_path} className="h-full w-full rounded-[6px] object-cover" />
                 </div>
               )}
@@ -545,21 +534,11 @@ export function StoryPlayer({ story, onClose, onEdit, onShare, readOnly = false 
           {!isPlaying && (
             <div className="absolute inset-x-0 bottom-[26px] flex flex-col gap-3">
               <div className="flex items-center justify-center gap-3 text-[14px] font-medium text-white">
-                <button
-                  onClick={() => jumpToIndex(currentIndex - 1)}
-                  disabled={currentIndex === 0}
-                  className="text-[17px] text-white/80 disabled:opacity-30"
-                >
+                <button onClick={() => jumpToIndex(currentIndex - 1)} disabled={currentIndex === 0} className="text-[17px] text-white/80 disabled:opacity-30">
                   ‹
                 </button>
-                <span>
-                  Stop {currentIndex + 1} of {stops.length} · {place.town}
-                </span>
-                <button
-                  onClick={() => jumpToIndex(currentIndex + 1)}
-                  disabled={currentIndex === stops.length - 1}
-                  className="text-[17px] text-white/80 disabled:opacity-30"
-                >
+                <span>Stop {currentIndex + 1} of {stops.length} · {place.town}</span>
+                <button onClick={() => jumpToIndex(currentIndex + 1)} disabled={currentIndex === stops.length - 1} className="text-[17px] text-white/80 disabled:opacity-30">
                   ›
                 </button>
               </div>
@@ -569,21 +548,14 @@ export function StoryPlayer({ story, onClose, onEdit, onShare, readOnly = false 
                     key={s.id}
                     onClick={() => jumpToIndex(i)}
                     className="flex-shrink-0 overflow-hidden rounded-[10px] text-left"
-                    style={{
-                      width: 74,
-                      height: 62,
-                      border: i === currentIndex ? `2px solid ${CORAL}` : '2px solid transparent',
-                    }}
+                    style={{ width: 74, height: 62, border: i === currentIndex ? `2px solid ${CORAL}` : '2px solid transparent' }}
                   >
-                    {s.visit.photos[0] ? (
-                      <PhotoThumb storagePath={s.visit.photos[0].storage_path} className="h-full w-full object-cover" />
+                    {s.storyPhotos[0] ? (
+                      <PhotoThumb storagePath={s.storyPhotos[0].photo.storage_path} className="h-full w-full object-cover" />
                     ) : (
                       <div className="h-full w-full bg-story-photo" />
                     )}
-                    <div
-                      className="mt-[-16px] truncate px-1 text-[10px] leading-[1.3]"
-                      style={{ color: i === currentIndex ? '#FFFFFF' : 'rgba(255,255,255,.55)' }}
-                    >
+                    <div className="mt-[-16px] truncate px-1 text-[10px] leading-[1.3]" style={{ color: i === currentIndex ? '#FFFFFF' : 'rgba(255,255,255,.55)' }}>
                       {s.visit.place.town}
                     </div>
                   </button>
@@ -600,33 +572,21 @@ export function StoryPlayer({ story, onClose, onEdit, onShare, readOnly = false 
             <div className="text-[11px] uppercase tracking-[.16em] text-white/70">
               {stops.length} stops · {days} days · {totalPhotos} photos
             </div>
-            <div className="mt-1 max-w-[280px] font-story-serif text-[42px] leading-[1.05]">
-              That&rsquo;s the whole holiday.
-            </div>
+            <div className="mt-1 max-w-[280px] font-story-serif text-[42px] leading-[1.05]">That&rsquo;s the whole holiday.</div>
           </div>
 
           <div className="absolute inset-x-4 bottom-[26px] flex flex-col gap-3 rounded-[22px] bg-story-cream p-[18px]">
             {!readOnly && (
-              <button
-                onClick={handleShare}
-                disabled={sharing}
-                className="rounded-2xl bg-story-coral px-5 py-4 text-left text-[16px] font-bold text-white disabled:opacity-70"
-              >
+              <button onClick={handleShare} disabled={sharing} className="rounded-2xl bg-story-coral px-5 py-4 text-left text-[16px] font-bold text-white disabled:opacity-70">
                 {sharing ? 'Sharing…' : shareCopied ? 'Link copied!' : shareUrl ? 'Copy share link' : 'Share with family'}
               </button>
             )}
             <div className="flex gap-2">
-              <button
-                onClick={watchAgain}
-                className="flex-1 rounded-xl bg-story-dark py-2.5 text-[14px] font-bold text-white"
-              >
+              <button onClick={watchAgain} className="flex-1 rounded-xl bg-story-dark py-2.5 text-[14px] font-bold text-white">
                 ↻ Watch again
               </button>
               {!readOnly && onEdit && (
-                <button
-                  onClick={onEdit}
-                  className="flex-1 rounded-xl border border-story-divider py-2.5 text-[14px] font-bold text-story-body"
-                >
+                <button onClick={onEdit} className="flex-1 rounded-xl border border-story-divider py-2.5 text-[14px] font-bold text-story-body">
                   Edit stops
                 </button>
               )}
@@ -638,10 +598,7 @@ export function StoryPlayer({ story, onClose, onEdit, onShare, readOnly = false 
             </p>
           </div>
 
-          <button
-            onClick={onClose}
-            className="absolute right-4 top-[max(14px,env(safe-area-inset-top))] flex h-9 w-9 items-center justify-center rounded-full bg-white/14 text-white"
-          >
+          <button onClick={onClose} className="absolute right-4 top-[max(14px,env(safe-area-inset-top))] flex h-9 w-9 items-center justify-center rounded-full bg-white/14 text-white">
             ✕
           </button>
         </>

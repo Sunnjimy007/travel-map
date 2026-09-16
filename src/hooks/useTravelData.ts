@@ -171,6 +171,26 @@ export function useTravelData(userId: string | null) {
     [refresh, userId]
   )
 
+  // Returns the created row directly (rather than relying on the next
+  // refresh(), like addPhotosToVisit) since callers — the Holiday Stories
+  // handwritten-note uploader — need the new photo's id right away to
+  // attach it to a story_stop.
+  const addNotePhoto = useCallback(
+    async (visitId: string, file: File): Promise<VisitPhoto> => {
+      if (!userId) throw new Error('Not signed in')
+      const path = await uploadVisitPhoto(userId, visitId, file)
+      const { data, error: err } = await supabase
+        .from('visit_photos')
+        .insert({ visit_id: visitId, storage_path: path, sort_order: 999 })
+        .select()
+        .single()
+      if (err) throw err
+      await refresh()
+      return data as VisitPhoto
+    },
+    [refresh, userId]
+  )
+
   const deletePhoto = useCallback(
     async (photo: VisitPhoto) => {
       await deleteVisitPhotoFile(photo.storage_path)
@@ -193,6 +213,7 @@ export function useTravelData(userId: string | null) {
     deleteVisit,
     updatePlace,
     addPhotosToVisit,
+    addNotePhoto,
     deletePhoto,
   }
 }

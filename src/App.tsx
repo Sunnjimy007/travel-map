@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { isSupabaseConfigured } from './lib/supabase'
 import { useAuth } from './hooks/useAuth'
 import { useTravelData } from './hooks/useTravelData'
-import { useStories } from './hooks/useStories'
+import { useStories, type StopGroup } from './hooks/useStories'
 import { SignIn } from './components/SignIn'
 import { Nav, type ViewName } from './components/Nav'
 import { MapView } from './components/MapView'
@@ -66,8 +66,8 @@ function SignedInGate() {
     setStoriesMode('play')
   }
 
-  async function handleCreateStory(title: string, visitIds: string[]) {
-    const story = await stories.createStory(title, visitIds)
+  async function handleCreateStory(title: string, groups: StopGroup[]) {
+    const story = await stories.createStory(title, groups)
     setActiveStoryId(story.id)
     setStopIndex(0)
     setStoriesMode('edit')
@@ -135,6 +135,7 @@ function SignedInGate() {
             places={data.places}
             stories={stories.stories}
             usedVisitIds={stories.usedVisitIds}
+            usedPhotoIds={stories.usedPhotoIds}
             userEmail={user.email ?? null}
             onOpenStory={openStory}
             onCreateStory={handleCreateStory}
@@ -210,10 +211,13 @@ function SignedInGate() {
             setStopIndex(0)
           }}
           onUpdateStop={stories.updateStop}
+          onUpdateStopPhotoAnswer={stories.updateStopPhotoAnswer}
           onUpdateVisit={data.updateVisit}
           onUpdatePlace={(placeId, updates) => data.updatePlace(placeId, updates)}
-          onAddPhotos={data.addPhotosToVisit}
-          onDeletePhoto={data.deletePhoto}
+          onAddNotePhoto={async (stopId, visitId, file) => {
+            const photo = await data.addNotePhoto(visitId, file)
+            await stories.updateStop(stopId, { note_photo_id: photo.id })
+          }}
         />
       )}
 
