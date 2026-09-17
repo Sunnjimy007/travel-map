@@ -545,13 +545,13 @@ export function StoryPlayer({ story, onClose, onEdit, onShare, readOnly = false 
               <div key={stop.id} className={`flex min-h-0 flex-1 flex-col p-3.5 ${cardEntering ? 'story-card-enter' : ''}`}>
                 <div className={isPortrait ? 'flex min-h-0 flex-1 gap-3' : 'flex min-h-0 flex-1 flex-col'}>
                   <div
-                    className={`relative flex-shrink-0 overflow-hidden rounded-2xl bg-story-photo ${
+                    className={`relative flex-shrink-0 overflow-hidden rounded-2xl ${
                       isPortrait ? 'w-[44%]' : 'mb-3 h-[220px] w-full'
                     }`}
                   >
                     <PhotoThumb
                       storagePath={currentStoryPhoto.photo.storage_path}
-                      className="h-full w-full object-contain"
+                      className="h-full w-full rounded-2xl object-contain"
                       onDimensions={({ width, height }) => {
                         if (height <= width) return
                         setPortraitPhotoIds((prev) =>
@@ -569,7 +569,7 @@ export function StoryPlayer({ story, onClose, onEdit, onShare, readOnly = false 
                       </div>
                     ))}
                   </div>
-                  <div className="min-h-0 flex-1 overflow-y-auto">
+                  <div className="min-h-0 flex-1 overflow-y-auto rounded-2xl bg-white p-3">
                     {currentStoryPhoto.prompt_id && (
                       <span className="font-story-serif text-[19px] leading-[1.15] text-story-muted">{currentStoryPhoto.prompt_id}</span>
                     )}
